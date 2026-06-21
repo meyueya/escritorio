@@ -34,5 +34,4 @@ Se incluye un flujo de CI básico en `.github/workflows/ci.yml` que ejecuta inst
 ## Contribuir
 Consulta [CONTRIBUTING.md](CONTRIBUTING.md#L1) para normas de contribución.
 
----
-Si necesitas que adapte el README para un proyecto concreto, dime cuál y lo amplio.
+
