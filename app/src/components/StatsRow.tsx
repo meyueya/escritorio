@@ -1,4 +1,4 @@
-/* eslint-disable react-hooks/purity, react-hooks/set-state-in-effect */
+ 
 import { useMemo, useState, useEffect } from 'react';
 import Sparkline from './Sparkline';
 
