@@ -1,0 +1,85 @@
+<svg viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg" style="background-color: #0B0F19; border-radius: 12px;">
+  <defs>
+    <!-- Filtros de Brillo (Glow) -->
+    <filter id="glowBlue" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="4" result="blur" />
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="glowCyan" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="blur" />
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+    <!-- Gradientes -->
+    <linearGradient id="lineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#3B82F6" />
+      <stop offset="100%" stop-color="#06B6D4" />
+    </linearGradient>
+    
+    <linearGradient id="phoneGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1E293B" />
+      <stop offset="100%" stop-color="#0F172A" />
+    </linearGradient>
+  </defs>
+
+  <!-- Título Sutil -->
+  <text x="400" y="40" fill="#94A3B8" font-family="sans-serif" font-size="16" text-anchor="middle" letter-spacing="2">DE LA INCERTIDUMBRE A TU LUGAR</text>
+
+  <!-- Nodos de Origen (Portales - La Búsqueda) -->
+  <g fill="#3B82F6" filter="url(#glowBlue)">
+    <circle cx="100" cy="120" r="8"><animate attributeName="opacity" values="0.4;1;0.4" dur="2s" repeatCount="indefinite"/></circle>
+    <circle cx="60" cy="200" r="8"><animate attributeName="opacity" values="0.4;1;0.4" dur="2.5s" repeatCount="indefinite"/></circle>
+    <circle cx="100" cy="280" r="8"><animate attributeName="opacity" values="0.4;1;0.4" dur="1.8s" repeatCount="indefinite"/></circle>
+  </g>
+  <text x="80" y="330" fill="#64748B" font-family="sans-serif" font-size="12" text-anchor="middle">Oportunidades</text>
+
+  <!-- Líneas de Flujo (Scraping) -->
+  <path id="pathFlow1" d="M110 120 Q 250 120 350 200" fill="transparent" stroke="#3B82F633" stroke-width="2"/>
+  <path id="pathFlow2" d="M70 200 Q 200 200 350 200" fill="transparent" stroke="#3B82F633" stroke-width="2"/>
+  <path id="pathFlow3" d="M110 280 Q 250 280 350 200" fill="transparent" stroke="#3B82F633" stroke-width="2"/>
+
+  <!-- Partículas viajando (Datos) -->
+  <circle r="3" fill="#3B82F6" filter="url(#glowBlue)">
+    <animateMotion dur="2s" repeatCount="indefinite"><mpath href="#pathFlow1"/></animateMotion>
+  </circle>
+  <circle r="3" fill="#3B82F6" filter="url(#glowBlue)">
+    <animateMotion dur="2.5s" repeatCount="indefinite"><mpath href="#pathFlow2"/></animateMotion>
+  </circle>
+  <circle r="3" fill="#3B82F6" filter="url(#glowBlue)">
+    <animateMotion dur="1.8s" repeatCount="indefinite"><mpath href="#pathFlow3"/></animateMotion>
+  </circle>
+
+  <!-- Núcleo IA (El Puente) -->
+  <g filter="url(#glowCyan)">
+    <rect x="320" y="170" width="60" height="60" rx="10" fill="#0F172A" stroke="#06B6D4" stroke-width="2"/>
+    <text x="350" y="205" fill="#06B6D4" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle">IA</text>
+    <animate attributeName="opacity" values="0.8;1;0.8" dur="1.5s" repeatCount="indefinite"/>
+  </g>
+  <text x="350" y="250" fill="#64748B" font-family="sans-serif" font-size="12" text-anchor="middle">Motor Cascade</text>
+
+  <!-- Línea Hacia la Solución (Personalización) -->
+  <path id="pathOut" d="M380 200 Q 500 200 600 200" fill="transparent" stroke="#06B6D433" stroke-width="2"/>
+  
+  <!-- Partícula viajando hacia ti (CV Listo) -->
+  <circle r="4" fill="#06B6D4" filter="url(#glowCyan)">
+    <animateMotion dur="1.5s" repeatCount="indefinite"><mpath href="#pathOut"/></animateMotion>
+  </circle>
+
+  <!-- El Destino: Tu iPhone (Control Total) -->
+  <g transform="translate(600, 140)">
+    <!-- Marco del Teléfono -->
+    <rect x="0" y="0" width="80" height="120" rx="15" fill="url(#phoneGrad)" stroke="#94A3B8" stroke-width="2"/>
+    <!-- Pantalla -->
+    <rect x="8" y="15" width="64" height="85" rx="4" fill="#1E293B"/>
+    <!-- Icono de Check (Aprobación) -->
+    <path d="M25 55 L 38 68 L 58 42" fill="transparent" stroke="#10B981" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+      <animate attributeName="stroke-dashoffset" from="50" to="0" dur="1s" repeatCount="indefinite" />
+      <animate attributeName="stroke-dasharray" values="0,50;50,0" dur="1s" repeatCount="indefinite" />
+    </path>
+    <!-- Barra inferior iPhone -->
+    <rect x="25" y="108" width="30" height="4" rx="2" fill="#94A3B8"/>
+  </g>
+  <text x="640" y="290" fill="#10B981" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle">Tu control</text>
+  <text x="640" y="310" fill="#64748B" font-family="sans-serif" font-size="12" text-anchor="middle">Human-in-the-loop</text>
+
+</svg>

@@ -1,0 +1,109 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 160 30% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 160 30% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 160 30% 15%;
+    --primary: 160 30% 15%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 160 15% 95%;
+    --secondary-foreground: 160 30% 15%;
+    --muted: 160 15% 95%;
+    --muted-foreground: 160 12% 53%;
+    --accent: 160 15% 95%;
+    --accent-foreground: 160 30% 15%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 160 15% 85%;
+    --input: 160 15% 85%;
+    --ring: 160 30% 15%;
+    --radius: 0.5rem;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: #1A3631;
+    color: #1A3631;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer components {
+  .font-mono {
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+  }
+
+  .bar-track {
+    width: 100%;
+    height: 8px;
+    background: #D4E0DC;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 1.5s ease-out;
+  }
+
+  .bar-fill--green {
+    background: #10B981;
+  }
+
+  .bar-fill--amber {
+    background: #F59E0B;
+  }
+
+  .bar-fill--red {
+    background: #EF4444;
+  }
+
+  .bar-fill--gray {
+    background: #6B8A84;
+  }
+
+  .badge-green {
+    background: #10B981;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .badge-amber {
+    background: #F59E0B;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .badge-red {
+    background: #EF4444;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .badge-gray {
+    background: #6B8A84;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+}
