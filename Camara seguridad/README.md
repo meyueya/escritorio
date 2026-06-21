@@ -203,4 +203,4 @@ Con CRF=23, los valores reales dependen del movimiento en escena. Escenas estát
 
 ---
 
-*Generado por Antigravity AI*
+*Generado por Pedro Castillo*

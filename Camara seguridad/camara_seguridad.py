@@ -2,7 +2,7 @@
 # =============================================================================
 #  SISTEMA DE CÁMARA DE SEGURIDAD PERSONAL — macOS
 #  Versión: 3.0.0
-#  Autor: Generado por Antigravity AI
+#  Autor: Generado por Pedro Castillo
 #
 #  DESCRIPCIÓN:
 #    Graba video (cv2) y audio (sounddevice) de forma continua y silenciosa
