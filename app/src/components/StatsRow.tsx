@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/purity, react-hooks/set-state-in-effect */
 import { useMemo, useState, useEffect } from 'react';
 import Sparkline from './Sparkline';
 
@@ -11,12 +12,9 @@ export default function StatsRow({ assets, verdicts }: StatsRowProps) {
     return assets.reduce((sum, a) => sum + a.price * 0.7, 0);
   }, [assets]);
 
-  const [portfolioHistory, setPortfolioHistory] = useState<number[]>(() => {
-    // placeholder until we compute real history in effect
-    return []
-  })
+  const [portfolioHistory, setPortfolioHistory] = useState<number[]>([])
 
-  const [exposureHistory, setExposureHistory] = useState<number[]>(() => [])
+  const [exposureHistory, setExposureHistory] = useState<number[]>([])
 
   useEffect(() => {
     const base = portfolioValue

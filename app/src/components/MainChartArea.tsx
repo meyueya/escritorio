@@ -8,15 +8,7 @@ interface MainChartAreaProps {
 }
 
 export default function MainChartArea({ asset, verdict }: MainChartAreaProps) {
-  const [chartData, setChartData] = useState<number[]>(() => {
-    const initial: number[] = [];
-    let val = asset.price;
-    for (let i = 0; i < 100; i++) {
-      val += (Math.random() - 0.48) * asset.volatility * 0.2;
-      initial.push(val);
-    }
-    return initial;
-  });
+  const [chartData, setChartData] = useState<number[]>([])
   const prevPrice = useRef(asset.price);
 
   // Initialize chart data

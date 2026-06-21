@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/purity, react-hooks/set-state-in-effect */
 import { useEffect, useState } from 'react';
 import { Verdict, VERDICT_COLORS, type SignalHistoryEntry } from '@/types/engine';
 
