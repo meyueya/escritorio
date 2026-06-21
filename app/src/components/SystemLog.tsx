@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { Verdict, VERDICT_COLORS, type SignalHistoryEntry } from '@/types/engine';
 
 interface SystemLogProps {
@@ -14,20 +14,30 @@ function timeAgo(ts: number): string {
 }
 
 export default function SystemLog({ signalHistory }: SystemLogProps) {
-  // Generate mock history if empty
-  const history = useMemo<SignalHistoryEntry[]>(() => {
-    if (signalHistory.length > 0) return signalHistory;
-    const mock: SignalHistoryEntry[] = [
-      { verdict: Verdict.BLOW_OFF_TOP, timestamp: Date.now() - 3600000, confidence: 0.85, symbol: 'BTC' },
-      { verdict: Verdict.PANIC_DUMP, timestamp: Date.now() - 7200000, confidence: 0.78, symbol: 'NVDA' },
-      { verdict: Verdict.NEUTRAL, timestamp: Date.now() - 10800000, confidence: 0.15, symbol: 'AAPL' },
-      { verdict: Verdict.CAPITULATION_REBOUND, timestamp: Date.now() - 18000000, confidence: 0.72, symbol: 'SOL' },
-    ];
-    return mock;
-  }, [signalHistory]);
+  // Generate mock history if empty — compute in effect to avoid impure calls during render
+  const [history, setHistory] = useState<SignalHistoryEntry[] | null>(null)
+  const [adxValue, setAdxValue] = useState<number | null>(null)
+  const [rsiValue, setRsiValue] = useState<number | null>(null)
 
-  const adxValue = useMemo(() => 35 + Math.floor(Math.random() * 25), []);
-  const rsiValue = useMemo(() => 45 + Math.floor(Math.random() * 30), []);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (signalHistory.length > 0) {
+        setHistory(signalHistory)
+      } else {
+        const mock: SignalHistoryEntry[] = [
+          { verdict: Verdict.BLOW_OFF_TOP, timestamp: Date.now() - 3600000, confidence: 0.85, symbol: 'BTC' },
+          { verdict: Verdict.PANIC_DUMP, timestamp: Date.now() - 7200000, confidence: 0.78, symbol: 'NVDA' },
+          { verdict: Verdict.NEUTRAL, timestamp: Date.now() - 10800000, confidence: 0.15, symbol: 'AAPL' },
+          { verdict: Verdict.CAPITULATION_REBOUND, timestamp: Date.now() - 18000000, confidence: 0.72, symbol: 'SOL' },
+        ];
+        setHistory(mock)
+      }
+
+      setAdxValue(35 + Math.floor(Math.random() * 25))
+      setRsiValue(45 + Math.floor(Math.random() * 30))
+    }, 0)
+    return () => clearTimeout(t)
+  }, [signalHistory])
 
   return (
     <div style={{ width: '200px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -134,7 +144,7 @@ export default function SystemLog({ signalHistory }: SystemLogProps) {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {history.map((entry, i) => {
+          {(history || []).map((entry, i) => {
             const color = VERDICT_COLORS[entry.verdict].bg;
             const shortLabel = entry.verdict === Verdict.BLOW_OFF_TOP ? 'BLOW-OFF'
               : entry.verdict === Verdict.CAPITULATION_REBOUND ? 'CAPITULATION'

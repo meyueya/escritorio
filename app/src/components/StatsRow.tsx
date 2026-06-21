@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import Sparkline from './Sparkline';
 
 interface StatsRowProps {
@@ -11,18 +11,29 @@ export default function StatsRow({ assets, verdicts }: StatsRowProps) {
     return assets.reduce((sum, a) => sum + a.price * 0.7, 0);
   }, [assets]);
 
-  const portfolioHistory = useMemo(() => {
-    const base = portfolioValue;
-    return Array.from({ length: 30 }, (_, i) => {
-      return base + Math.sin(i * 0.3) * base * 0.02 + (Math.random() - 0.5) * base * 0.005;
-    });
-  }, [portfolioValue]);
+  const [portfolioHistory, setPortfolioHistory] = useState<number[]>(() => {
+    // placeholder until we compute real history in effect
+    return []
+  })
 
-  const exposureHistory = useMemo(() => {
-    return Array.from({ length: 30 }, (_, i) => {
-      return 20 + Math.sin(i * 0.2) * 5 + Math.random() * 2;
-    });
-  }, []);
+  const [exposureHistory, setExposureHistory] = useState<number[]>(() => [])
+
+  useEffect(() => {
+    const base = portfolioValue
+    const ph = Array.from({ length: 30 }, (_, i) => {
+      return base + Math.sin(i * 0.3) * base * 0.02 + (Math.random() - 0.5) * base * 0.005
+    })
+    const t = setTimeout(() => setPortfolioHistory(ph), 0)
+    return () => clearTimeout(t)
+  }, [portfolioValue])
+
+  useEffect(() => {
+    const eh = Array.from({ length: 30 }, (_, i) => {
+      return 20 + Math.sin(i * 0.2) * 5 + Math.random() * 2
+    })
+    const t = setTimeout(() => setExposureHistory(eh), 0)
+    return () => clearTimeout(t)
+  }, [])
 
   const activeSignals = verdicts.momentum + verdicts.breakout + verdicts.exhaustion;
 

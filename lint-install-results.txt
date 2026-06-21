@@ -1,0 +1,27 @@
+--- Project: ./empleo-autopilot-ios-sdk51
+No lint script, skipping
+
+--- Project: ./app
+Has lint script
+Running lint in ./app...
+LINT FAIL: ./app (see logs)
+
+--- Project: ./empleo
+No lint script, skipping
+
+--- Project: ./EmpleoApp
+No lint script, skipping
+
+--- Project: ./empleo-autopilot-ios
+No lint script, skipping
+
+--- Project: ./Agentes multiples
+Has lint script
+Running lint in ./Agentes multiples...
+LINT FAIL: ./Agentes multiples (see logs)
+
+--- Project: ./simulador tipo 2
+Has lint script
+Running lint in ./simulador tipo 2...
+LINT FAIL: ./simulador tipo 2 (see logs)
+

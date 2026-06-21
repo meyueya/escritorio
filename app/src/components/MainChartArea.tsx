@@ -29,7 +29,7 @@ export default function MainChartArea({ asset, verdict }: MainChartAreaProps) {
     }
     const t = setTimeout(() => setChartData(initial), 0)
     return () => clearTimeout(t)
-  }, [asset.symbol, asset.basePrice, asset.volatility]);
+  }, [asset.symbol, asset.basePrice, asset.volatility, asset.price]);
 
   // Update chart data
   useEffect(() => {
