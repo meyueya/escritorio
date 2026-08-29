@@ -1,0 +1,233 @@
+--- a/server.js
++++ b/server.js
+@@ -44,6 +44,7 @@
+     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+     res.setHeader('Permissions-Policy', 'camera=(), geolocation=(), payment=(), usb=()');
+     res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
++    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+     res.setHeader('Content-Security-Policy', [
+         "default-src 'self'",
+         "script-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net",
+@@ -67,6 +68,7 @@
+         const clave = req.ip || req.socket?.remoteAddress || 'desconocido';
+         const registro = accesos.get(clave);
+         if (!registro || ahora >= registro.reiniciaEn) {
++            if (registro) accesos.delete(clave); // Purgar entrada caducada (evita crecimiento ilimitado)
+             accesos.set(clave, { cantidad: 1, reiniciaEn: ahora + ventanaMs });
+             return next();
+         }
+@@ -80,6 +82,8 @@
+ }
+ 
+ const authLimiter = crearLimitador({ ventanaMs: 15 * 60 * 1000, maximo: 30 });
++// Limitador para endpoints con coste externo (IA/TTS/notificaciones)
++const aiLimiter = crearLimitador({ ventanaMs: 60 * 1000, maximo: 20 });
+ 
+ function servirFrontend(nombreArchivo) {
+     return (req, res) => {
+@@ -125,6 +129,9 @@
+ if (process.env.NODE_ENV === 'production' && configuredJwtSecret.length < 32) {
+     throw new Error('JWT_SECRET debe existir y tener al menos 32 caracteres en producción.');
+ }
++if (process.env.NODE_ENV === 'production' && process.env.DEMO_MODE === 'true') {
++    throw new Error('DEMO_MODE no puede activarse en producción (fail-closed).');
++}
+ const JWT_SECRET = configuredJwtSecret || (
+     process.env.NODE_ENV === 'test'
+         ? 'lumina-test-secret-2026-change-only-in-tests'
+@@ -699,7 +706,7 @@
+     if (!token) return res.status(401).json({ error: 'Sesión requerida.' });
+ 
+     try {
+-        const decoded = jwt.verify(token, JWT_SECRET);
++        const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
+         req.userId = decoded.userId;
+         req.username = decoded.username;
+         req.role = decoded.role || 'ceo'; // Retrocompatible
+@@ -791,7 +798,7 @@
+         const token = jwt.sign(
+             { userId: user.id, username: user.username, role: user.role || 'ceo', orgId: user.orgId || `org_${user.username}` },
+             JWT_SECRET,
+-            { expiresIn: '7d' }
++            { expiresIn: '7d', algorithm: 'HS256' }
+         );
+         establecerCookieSesion(res, token);
+ 
+@@ -833,7 +840,7 @@
+     const token = jwt.sign(
+         { userId: user.id, username: user.username, role: user.role, orgId: user.orgId },
+         JWT_SECRET,
+-        { expiresIn: '7d' }
++        { expiresIn: '7d', algorithm: 'HS256' }
+     );
+     establecerCookieSesion(res, token);
+     res.json({
+@@ -872,9 +879,10 @@
+ 
+         console.log("[Voz] Audio recibido (mime:", req.file.mimetype + ")");
+ 
+-        // Usar la extensión del nombre de archivo que mandó el frontend
+-        const originalExt = req.file.originalname.split('.').pop() || 'webm';
+-        tempFilePath = req.file.path + '.' + originalExt;
++        // Nunca derivar la ruta del originalname: usar extensión con allowlist estricta.
++        const rawExt = (req.file.originalname.split('.').pop() || '').toLowerCase().replace(/[^a-z0-9]/gi, '').slice(0, 8);
++        const safeExt = ['webm', 'mp3', 'wav', 'm4a', 'ogg', 'mpeg'].includes(rawExt) ? rawExt : 'webm';
++        tempFilePath = req.file.path + '.' + safeExt;
+         fs.renameSync(req.file.path, tempFilePath);
+ 
+         // Transcribimos con Whisper de Groq (con manejo de errores claro)
+@@ -1679,7 +1687,7 @@
+ /**
+  * RUTA 10: Chat Global (Consultoría Lumina)
+  */
+-app.post('/api/chat-global', requireAuth, async (req, res) => {
++app.post('/api/chat-global', requireAuth, aiLimiter, async (req, res) => {
+     try {
+         const { mensaje, historial } = req.body;
+         if (!mensaje || typeof mensaje !== 'string') {
+@@ -1817,7 +1825,7 @@
+  * ====== RUTA 12: ORQUESTADOR ESTRATÉGICO ======
+  * Desglosa dictado en misiones con asignación de roles y detección de sinergias
+  */
+-app.post('/api/orquestar', requireAuth, async (req, res) => {
++app.post('/api/orquestar', requireAuth, aiLimiter, async (req, res) => {
+     try {
+         const { texto } = req.body;
+         if (!texto || texto.trim().length === 0) {
+@@ -2186,7 +2194,7 @@
+  * ====== RUTA 14: PERSONALIDAD DE LUMI (PREGUNTA/CHARLA) ======
+  * Lumi razona y responde con su personalidad sin crear nodos
+  */
+-app.post('/api/lumi-responde', requireAuth, async (req, res) => {
++app.post('/api/lumi-responde', requireAuth, aiLimiter, async (req, res) => {
+     try {
+         const { texto, planetaActivo, historial } = req.body;
+         if (!texto) return res.status(400).json({ error: 'Texto vacío.' });
+@@ -2552,7 +2560,7 @@
+ /**
+  * ====== TTS PROXY ENDPOINT (macOS System Voice + ElevenLabs) ======
+  */
+-app.post('/api/tts', requireAuth, async (req, res) => {
++app.post('/api/tts', requireAuth, aiLimiter, async (req, res) => {
+     try {
+         const { text, voice, rate } = req.body;
+         if (!text || typeof text !== 'string' || !text.trim()) {
+@@ -3303,7 +3311,7 @@
+ /**
+  * POST /api/notifications/email — Enviar notificación por email
+  */
+-app.post('/api/notifications/email', requireAuth, async (req, res) => {
++app.post('/api/notifications/email', requireAuth, aiLimiter, async (req, res) => {
+     try {
+         if (!process.env.SENDGRID_API_KEY) {
+             return res.status(503).json({ error: 'SendGrid no configurado. Agrega SENDGRID_API_KEY al .env' });
+@@ -3314,6 +3322,10 @@
+         const recipient = to || emailData?.address;
+ 
+         if (!recipient) return res.status(400).json({ error: 'No hay dirección de email configurada.' });
++        // Fail-closed: solo se permite enviar a la dirección verificada del propio usuario.
++        if (recipient !== emailData?.address) {
++            return res.status(400).json({ error: 'Solo puedes enviar emails a tu dirección configurada.' });
++        }
+         if (!subject || !body) return res.status(400).json({ error: 'Asunto y cuerpo requeridos.' });
+ 
+         await sgMail.send({
+@@ -3327,8 +3339,8 @@
+                         <p style="color:#888;font-size:0.85rem;">Tu Consejera Ejecutiva</p>
+                     </div>
+                     <div style="background:rgba(255,255,255,0.05);padding:20px;border-radius:10px;border:1px solid rgba(17,180,212,0.2);">
+-                        <h2 style="color:#11b4d4;margin-top:0;">${subject}</h2>
+-                        <div style="color:#c0c0c0;line-height:1.6;">${body}</div>
++                        <h2 style="color:#11b4d4;margin-top:0;">${escapeHtml(subject)}</h2>
++                        <div style="color:#c0c0c0;line-height:1.6;">${escapeHtml(body)}</div>
+                     </div>
+                     <p style="text-align:center;color:#555;font-size:0.75rem;margin-top:20px;">
+                         Enviado desde Lumina AI — ${new Date().toLocaleDateString('es-MX')}
+@@ -3437,7 +3449,7 @@
+  * POST /api/voice/clone — Clonar voz del usuario con ElevenLabs
+  * Recibe audio via multer, envía a ElevenLabs Voice Cloning API
+  */
+-app.post('/api/voice/clone', requireAuth, upload.single('audio'), async (req, res) => {
++app.post('/api/voice/clone', requireAuth, aiLimiter, upload.single('audio'), async (req, res) => {
+     try {
+         const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
+         if (!ELEVENLABS_API_KEY) {
+@@ -3743,6 +3755,12 @@
+ app.listen(PORT, () => {
+     console.log(`Lumina Brain corriendo en http://localhost:${PORT}`);
+     console.log(`Abre tu navegador en: http://localhost:${PORT}`);
++});
++
++// Error handler global: nunca filtrar stack traces al cliente.
++app.use((err, req, res, next) => {
++    console.error('[Global] Error no controlado:', err.message);
++    res.status(err.status || 500).json({ error: 'Error interno del servidor.' });
+ });
+ 
+ // Exportamos solo lo necesario para tests (no usado por la app en producción).
+--- a/index.html
++++ b/index.html
+@@ -12,8 +12,12 @@
+     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;700&display=swap" rel="stylesheet">
+     <!-- Three.js for the nebula background -->
+-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
++    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"
++            integrity="sha384-CI3ELBVUz9XQO+97x6nwMDPosPR5XvsxW2ua7N1Xeygeh1IxtgqtCkGfQY9WWdHu"
++            crossorigin="anonymous"></script>
++    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"
++            integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ"
++            crossorigin="anonymous"></script>
+ </head>
+ 
+ <body>
+--- a/.dockerignore
++++ b/.dockerignore
+@@ -21,3 +21,12 @@
+ uploads/*
+ data.json
+ users.json
++backup.json
++activity.json
++lumina-report-artifact.json
++*.jpeg
++*.gif
++*.webp
++*.mp4
++tmp/
++*.tmp
+--- a/tests/models.test.js
++++ b/tests/models.test.js
+@@ -1,3 +1,6 @@
++// Aislar del entorno ambiental: este test exige DEMO_MODE desactivado.
++delete process.env.DEMO_MODE;
++
+ const request = require('supertest');
+ const { app, resetDbs, generateToken, mockGroqCreate } = require('./setup');
+ 
+--- a/tests/fallback.test.js
++++ b/tests/fallback.test.js
+@@ -10,6 +10,9 @@
+  * - Respuesta vacía del modelo → 500 con mensaje claro (P8).
+  */
+ 
++// Aislar del entorno ambiental: los tests de fallback exigen DEMO_MODE desactivado.
++delete process.env.DEMO_MODE;
++
+ const request = require('supertest');
+ const { app, resetDbs, generateToken, mockGroqCreate, groqError } = require('./setup');
+ 
+--- a/tests/setup.js
++++ b/tests/setup.js
+@@ -21,6 +21,10 @@
+ // llamadas a Groq (mockGroqCreate) fallarían.
+ process.env.GROQ_API_KEY = process.env.GROQ_API_KEY || 'test-groq-key';
+ 
++// Determinismo: el fallback local debe estar habilitado en tests
++// independientemente del entorno ambiental del shell que lance Jest.
++process.env.LOCAL_FALLBACK_ENABLED = 'true';
++
+ // ===== ESTADO EN MEMORIA (reemplaza data.json / users.json / backup.json) =====
+ let mockDataDb = [];
+ let mockUsersDb = [];

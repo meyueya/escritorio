@@ -1,15 +1,579 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Antigravity Trading</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lumina — Mapa estratégico vivo</title>
+    <meta name="description" content="Convierte ideas dispersas en prioridades claras, responsables y próximos pasos.">
+    <link rel="stylesheet" href="style.css?v=lumina-beta2">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;700&display=swap" rel="stylesheet">
+    <!-- Three.js for the nebula background -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"
+            integrity="sha384-CI3ELBVUz9XQO+97x6nwMDPosPR5XvsxW2ua7N1Xeygeh1IxtgqtCkGfQY9WWdHu"
+            crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"
+            integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ"
+            crossorigin="anonymous"></script>
+</head>
+
+<body>
+    <!-- Acceso a Lumina -->
+    <div id="login-view">
+        <div class="login-orb login-orb-one"></div>
+        <div class="login-orb login-orb-two"></div>
+        <main class="login-shell">
+            <section class="login-story" aria-label="Qué ofrece Lumina">
+                <div class="login-brand"><span class="brand-glyph">L</span><span>LUMINA</span></div>
+                <div class="login-story-copy">
+                    <span class="product-kicker">INTELIGENCIA ESTRATÉGICA VISUAL</span>
+                    <h1>De la idea<br>al movimiento.</h1>
+                    <p>Lumina convierte el ruido de cada día en prioridades visibles, decisiones conectadas y próximos pasos claros.</p>
+                </div>
+                <div class="login-preview" aria-hidden="true">
+                    <div class="preview-grid"></div>
+                    <div class="preview-core"><span>✦</span></div>
+                    <div class="preview-orbit orbit-one"><i></i></div>
+                    <div class="preview-orbit orbit-two"><i></i></div>
+                    <div class="preview-signal signal-one"><b>3</b><span>prioridades</span></div>
+                    <div class="preview-signal signal-two"><b>82</b><span>pulso</span></div>
+                </div>
+                <div class="login-value-row">
+                    <span><i></i> Foco diario</span>
+                    <span><i></i> Mapa vivo</span>
+                    <span><i></i> Lumi AI</span>
+                </div>
+            </section>
+
+            <section class="login-box">
+                <div class="login-box-heading">
+                    <span class="login-step">TU ESPACIO</span>
+                    <h2>Vuelve a ver lo importante.</h2>
+                    <p>Entra en tu centro de mando estratégico.</p>
+                </div>
+
+                <div class="tabs">
+                    <button type="button" id="tab-login" class="active">Entrar</button>
+                    <button type="button" id="tab-register">Crear espacio</button>
+                </div>
+
+                <form id="auth-form">
+                    <label for="auth-username">Usuario</label>
+                    <input type="text" id="auth-username" placeholder="Tu nombre de usuario" required
+                        autocomplete="username">
+                    <label for="auth-password">Contraseña</label>
+                    <input type="password" id="auth-password" placeholder="Mínimo 8 caracteres" required autocomplete="current-password">
+                    <button type="submit" id="auth-submit"><span>Entrar a Lumina</span><span>→</span></button>
+                </form>
+                <div class="login-divider"><span>o descubre el producto</span></div>
+                <button type="button" id="btn-demo"><span>Explorar espacio de muestra</span><span>↗</span></button>
+                <p id="auth-error" role="status"></p>
+                <p class="login-privacy">Sesión privada · Tus ideas permanecen en tu espacio</p>
+            </section>
+        </main>
+    </div>
+
+    <!-- Toda la App Principal se oculta hasta tener sesión -->
+    <div id="app-view" class="hidden">
+        <div id="canvas-container"></div>
+
+        <!-- Navegación principal -->
+        <nav class="top-nav" aria-label="Navegación principal">
+            <div class="nav-brand"><span class="brand-glyph">L</span><span class="nav-brand-word">LUMINA</span></div>
+            <span class="nav-section-title">ESPACIO</span>
+            <div class="nav-primary">
+                <button id="btn-today" class="btn-top btn-today is-active" aria-label="Hoy" title="Prioridades y vencimientos de hoy"><span class="nav-icon">◉</span><span>Hoy</span></button>
+                <button id="btn-map" class="btn-top" aria-label="Mapa" title="Ver relaciones entre iniciativas"><span class="nav-icon">⌘</span><span>Mapa</span></button>
+                <button id="btn-activity" class="btn-top" aria-label="Actividad" title="Mensajes y actividad reciente"><span class="nav-icon">↗</span><span>Actividad</span></button>
+                <button id="btn-stats" class="btn-top" aria-label="Estadísticas" title="Mis estadísticas"><span class="nav-icon">▥</span><span>Estadísticas</span></button>
+            </div>
+            <button id="btn-integrations" class="btn-top hidden" title="Integraciones previstas para una fase posterior">⚡ Integraciones</button>
+            <button id="btn-voice-clone" class="btn-top btn-premium hidden" title="Clonar mi voz">🎤 Mi Voz</button>
+            <div class="nav-spacer"></div>
+            <button id="nav-capture" class="nav-capture" aria-label="Nueva iniciativa"><span>＋</span><span>Nueva iniciativa</span><kbd>⌘K</kbd></button>
+            <div class="nav-profile">
+                <span class="nav-avatar" aria-hidden="true"></span>
+                <div><strong id="nav-username"></strong><small>Espacio personal</small></div>
+                <button id="btn-logout" class="nav-logout" title="Cerrar sesión" aria-label="Cerrar sesión">↪</button>
+            </div>
+        </nav>
+
+        <section id="map-context" class="map-context" aria-label="Mapa estratégico">
+            <span class="workspace-kicker">MAPA VIVO</span>
+            <h1>Tu estrategia,<br><em>en movimiento.</em></h1>
+            <p>Explora las áreas y descubre cómo se conectan tus iniciativas.</p>
+            <div class="map-legend"><span><i class="legend-synergy"></i> Sinergia</span><span><i class="legend-risk"></i> Tensión</span></div>
+        </section>
+
+        <div id="today-modal" class="fullscreen-modal hidden">
+            <div class="modal-content today-modal-content">
+                <header class="today-hero">
+                    <div>
+                        <span class="workspace-kicker">CENTRO DE MANDO</span>
+                        <h2 id="today-greeting">Haz espacio para lo importante.</h2>
+                        <p id="today-date" class="today-date"></p>
+                    </div>
+                    <div class="today-hero-actions">
+                        <button id="today-capture" class="button-primary"><span>＋</span> Capturar iniciativa</button>
+                        <button id="close-today-modal" class="button-secondary" aria-label="Ver el mapa estratégico">Ver mapa <span>↗</span></button>
+                    </div>
+                </header>
+
+                <div class="today-dashboard-grid">
+                    <main class="today-main-column">
+                        <div id="today-metrics" class="today-metrics"></div>
+                        <section class="today-section priority-section">
+                            <div class="section-heading">
+                                <div><span class="section-index">01</span><h3>Foco de hoy</h3></div>
+                                <p>Tres movimientos que hacen avanzar tu estrategia.</p>
+                            </div>
+                            <div id="today-priorities" class="today-list priority-list"></div>
+                        </section>
+                    </main>
+
+                    <aside class="today-insight-panel">
+                        <div class="insight-head"><span>✦</span><div><small>LUMI SIGNAL</small><strong>Pulso estratégico</strong></div></div>
+                        <div class="momentum-visual" id="momentum-visual">
+                            <div class="momentum-ring"><div><strong id="momentum-score">—</strong><span>/ 100</span></div></div>
+                            <p id="momentum-label">Calculando claridad…</p>
+                        </div>
+                        <p id="lumi-insight" class="lumi-insight">Estoy leyendo el estado de tus iniciativas.</p>
+                        <div id="strategic-signals" class="strategic-signals"></div>
+                        <button id="btn-open-lumi" class="insight-action">Preguntar a Lumi <span>→</span></button>
+                    </aside>
+                </div>
+
+                <div class="today-columns operational-columns">
+                    <section class="today-section"><div class="section-heading compact"><div><span class="section-index">02</span><h3>En el radar</h3></div><p>Fechas que requieren atención.</p></div><div id="today-overdue" class="today-list"></div></section>
+                    <section class="today-section"><div class="section-heading compact"><div><span class="section-index">03</span><h3>Bloqueos</h3></div><p>Lo que necesita una decisión.</p></div><div id="today-blocked" class="today-list"></div></section>
+                </div>
+            </div>
+        </div>
+
+        <div id="focus-mode" class="focus-mode hidden" role="dialog" aria-modal="true" aria-labelledby="focus-title">
+            <div class="focus-ambient"></div>
+            <div class="focus-card">
+                <button id="close-focus" class="focus-close" aria-label="Cerrar modo foco">×</button>
+                <span class="workspace-kicker">MODO FOCO</span>
+                <div class="focus-timer" id="focus-timer"><div><strong id="focus-time">25:00</strong><span>MINUTOS DE CLARIDAD</span></div></div>
+                <p class="focus-label">MOVIMIENTO ACTIVO</p>
+                <h2 id="focus-title">Iniciativa seleccionada</h2>
+                <p id="focus-meta" class="focus-meta"></p>
+                <div class="focus-controls">
+                    <button id="focus-toggle" class="button-primary">Pausar</button>
+                    <button id="focus-complete" class="button-secondary">Marcar como completada</button>
+                </div>
+                <p class="focus-hint">Una cosa a la vez. El resto puede esperar.</p>
+            </div>
+        </div>
+
+        <!-- Modal: Historial persistente de mensajes y acciones -->
+        <div id="activity-modal" class="fullscreen-modal hidden">
+            <div class="modal-content activity-modal-content">
+                <button id="close-activity-modal" class="close-btn" aria-label="Cerrar actividad">&times;</button>
+                <div class="modal-header">
+                    <div class="modal-dot activity-dot"></div>
+                    <div>
+                        <h3>Actividad de Lumina</h3>
+                        <p id="activity-summary" class="activity-summary">Cargando historial…</p>
+                    </div>
+                </div>
+                <div class="activity-filters">
+                    <label>Periodo
+                        <select id="activity-period" class="glass-input">
+                            <option value="month">Este mes</option>
+                            <option value="today">Hoy</option>
+                            <option value="all">Todo</option>
+                        </select>
+                    </label>
+                    <label>Tipo
+                        <select id="activity-type" class="glass-input">
+                            <option value="">Todo</option>
+                            <option value="mensaje_recibido">Mensajes recibidos</option>
+                            <option value="respuesta_lumina">Respuestas de Lumina</option>
+                            <option value="accion_realizada">Acciones realizadas</option>
+                        </select>
+                    </label>
+                    <label>Origen
+                        <select id="activity-origin" class="glass-input">
+                            <option value="">Todos</option>
+                            <option value="chat">Chat</option>
+                            <option value="voz_o_texto">Mariposa (voz/texto)</option>
+                            <option value="orquestador">Orquestador</option>
+                        </select>
+                    </label>
+                    <button id="btn-refresh-activity" class="btn-micro-magic">Actualizar</button>
+                </div>
+                <div id="activity-list" class="activity-list" aria-live="polite"></div>
+            </div>
+        </div>
+
+        <!-- Modal: Integraciones -->
+        <div id="integrations-modal" class="fullscreen-modal hidden">
+            <div class="modal-content" style="width: 580px;">
+                <button id="close-integrations-modal" class="close-btn">&times;</button>
+                <div class="modal-header">
+                    <div class="modal-dot" style="background: #4ade80; box-shadow: 0 0 15px #4ade80;"></div>
+                    <h3>⚡ Integraciones</h3>
+                </div>
+
+                <div class="integrations-grid">
+                    <!-- Google Calendar -->
+                    <div class="integration-card" id="int-gcal-card">
+                        <div class="int-card-header">
+                            <span class="int-icon">📅</span>
+                            <div>
+                                <h4>Google Calendar</h4>
+                                <span class="int-status" id="int-gcal-status">No conectado</span>
+                            </div>
+                        </div>
+                        <p class="int-desc">Sincroniza reuniones de Lumina con tu Google Calendar automáticamente.</p>
+                        <div class="int-actions">
+                            <button id="btn-connect-calendar" class="btn-int-connect">Conectar</button>
+                            <button id="btn-sync-calendar" class="btn-int-action hidden">🔄 Sincronizar</button>
+                            <button id="btn-view-events" class="btn-int-action hidden">📋 Ver Eventos</button>
+                            <button id="btn-disconnect-calendar" class="btn-int-disconnect hidden">Desconectar</button>
+                        </div>
+                    </div>
+
+                    <!-- Slack -->
+                    <div class="integration-card" id="int-slack-card">
+                        <div class="int-card-header">
+                            <span class="int-icon">💬</span>
+                            <div>
+                                <h4>Slack</h4>
+                                <span class="int-status" id="int-slack-status">No conectado</span>
+                            </div>
+                        </div>
+                        <p class="int-desc">Recibe notificaciones automáticas de tareas, reuniones y recordatorios en Slack.</p>
+                        <div class="int-actions">
+                            <button id="btn-connect-slack" class="btn-int-connect">Conectar</button>
+                            <button id="btn-test-slack" class="btn-int-action hidden">🧪 Test</button>
+                            <button id="btn-disconnect-slack" class="btn-int-disconnect hidden">Desconectar</button>
+                        </div>
+                    </div>
+
+                    <!-- Email -->
+                    <div class="integration-card" id="int-email-card">
+                        <div class="int-card-header">
+                            <span class="int-icon">📧</span>
+                            <div>
+                                <h4>Email</h4>
+                                <span class="int-status" id="int-email-status">No configurado</span>
+                            </div>
+                        </div>
+                        <p class="int-desc">Resumen diario, recordatorios y reportes semanales directo a tu inbox.</p>
+                        <div class="int-email-form">
+                            <input type="email" id="int-email-input" class="glass-input" placeholder="tu@email.com" autocomplete="off">
+                            <div class="int-email-toggles">
+                                <label><input type="checkbox" id="int-email-daily" checked> Resumen diario (8 AM)</label>
+                                <label><input type="checkbox" id="int-email-reminders" checked> Recordatorios</label>
+                                <label><input type="checkbox" id="int-email-weekly"> Reporte semanal</label>
+                            </div>
+                        </div>
+                        <div class="int-actions">
+                            <button id="btn-save-email" class="btn-int-connect">💾 Guardar</button>
+                            <button id="btn-send-summary" class="btn-int-action hidden">📊 Enviar Resumen</button>
+                        </div>
+                    </div>
+                </div>
+
+                <p id="int-feedback" style="text-align:center; color: var(--color-turquoise); margin-top: 12px; font-size: 0.85rem;"></p>
+            </div>
+        </div>
+
+        <!-- Modal: Clonar Mi Voz (Premium) -->
+        <div id="voice-clone-modal" class="fullscreen-modal hidden">
+            <div class="modal-content" style="width: 520px;">
+                <button id="close-voice-clone-modal" class="close-btn">&times;</button>
+                <div class="modal-header">
+                    <div class="modal-dot" style="background: #ffd700; box-shadow: 0 0 15px #ffd700;"></div>
+                    <h3>🎤 Clonar Mi Voz <span class="premium-badge">PREMIUM</span></h3>
+                </div>
+
+                <p style="color: var(--color-silver); margin-bottom: 15px; font-size: 0.85rem;">
+                    Haz que Lumina hable con tu propia voz. Necesitas al menos <strong>30 segundos</strong> de audio claro,
+                    sin ruido de fondo ni música.
+                </p>
+
+                <!-- Estado actual -->
+                <div id="vc-current-status" class="vc-status-box hidden">
+                    <span id="vc-status-icon">✅</span>
+                    <span id="vc-status-text">Tienes una voz clonada activa</span>
+                    <button id="vc-delete-voice" class="btn-danger btn-micro" title="Eliminar voz clonada">🗑️</button>
+                </div>
+
+                <!-- Dos opciones: Grabar / Subir -->
+                <div id="vc-options" class="vc-options-grid">
+                    <div class="vc-option" id="vc-option-record">
+                        <div class="vc-option-icon">🎙️</div>
+                        <h4>Grabar ahora</h4>
+                        <p>Usa tu micrófono para grabar una muestra de voz</p>
+                    </div>
+                    <div class="vc-option" id="vc-option-upload">
+                        <div class="vc-option-icon">📁</div>
+                        <h4>Subir archivo</h4>
+                        <p>Sube un .mp3 o .wav con tu voz (mín. 30s)</p>
+                    </div>
+                </div>
+
+                <!-- Panel de Grabación -->
+                <div id="vc-record-panel" class="hidden">
+                    <div class="vc-recorder">
+                        <button id="vc-rec-btn" class="vc-rec-button">
+                            <span id="vc-rec-icon">⏺️</span>
+                        </button>
+                        <div class="vc-timer" id="vc-timer">00:00</div>
+                        <div class="vc-quality-bar">
+                            <div class="vc-quality-fill" id="vc-quality-fill"></div>
+                        </div>
+                        <p id="vc-rec-hint" style="color: var(--color-silver); font-size: 0.8rem;">
+                            Presiona para comenzar a grabar. Lee un texto en voz alta y clara.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Panel de Upload -->
+                <div id="vc-upload-panel" class="hidden">
+                    <label class="vc-upload-area" id="vc-upload-area">
+                        <input type="file" id="vc-file-input" accept=".mp3,.wav,.m4a,.webm" hidden>
+                        <div class="vc-upload-icon">📤</div>
+                        <p>Arrastra o haz clic para seleccionar archivo</p>
+                        <span id="vc-file-name" style="color: var(--color-turquoise);"></span>
+                    </label>
+                </div>
+
+                <!-- Preview y Enviar -->
+                <div id="vc-actions" class="hidden" style="margin-top: 15px; display: flex; gap: 10px; justify-content: center;">
+                    <button id="vc-preview-btn" class="btn-top" style="border-color: var(--color-turquoise);">🔊 Preview</button>
+                    <button id="vc-submit-btn" class="btn-magic">🚀 Clonar Mi Voz</button>
+                </div>
+
+                <!-- Estado de Procesamiento -->
+                <div id="vc-processing" class="hidden" style="text-align: center; padding: 20px;">
+                    <div class="vc-spinner"></div>
+                    <p id="vc-processing-text" style="color: var(--color-turquoise); margin-top: 10px;">
+                        Procesando clonación de voz...
+                    </p>
+                </div>
+
+                <!-- Upgrade para no-premium -->
+                <div id="vc-upgrade" class="hidden" style="text-align: center; padding: 20px;">
+                    <p style="color: var(--color-silver); font-size: 0.9rem;">✨ La clonación de voz es una función <strong style="color: #ffd700;">Premium</strong></p>
+                    <button id="vc-upgrade-btn" class="btn-magic" style="margin-top: 10px;">⭐ Activar Premium</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Butterfly + Input: float above everything -->
+        <div id="ai-assistant" class="butterfly">
+            <svg viewBox="0 0 100 100" class="butterfly-svg">
+                <path class="wing left-wing" d="M50 50 Q 20 10, 10 40 Q 30 80, 50 50" />
+                <path class="wing right-wing" d="M50 50 Q 80 10, 90 40 Q 70 80, 50 50" />
+                <circle class="core" cx="50" cy="50" r="3" />
+            </svg>
+            <div class="aura"></div>
+            <button class="butterfly-hit-target" type="button" aria-label="Hablar con Lumina"
+                title="Hablar con Lumina"></button>
+        </div>
+
+        <div id="input-container" class="capture-command hidden">
+            <span class="capture-command-icon">✦</span>
+            <input type="text" id="idea-input" placeholder="Captura una idea o un próximo paso…"
+                autocomplete="off">
+            <span class="capture-command-hint">ENTER para guardar</span>
+            <button id="close-capture" type="button" aria-label="Cerrar captura">ESC</button>
+        </div>
+
+        <div id="ui-layer">
+            <!-- Neural Connections Layer -->
+            <svg id="neural-canvas"></svg>
+
+            <!-- Mapa estratégico visual -->
+            <div id="constellation" class="hidden">
+                <!-- Dynamic nodes will be injected here -->
+            </div>
+
+            <!-- Modal de Detalle de Nodo (Glassmorphism) -->
+            <div id="node-modal" class="hidden">
+                <div class="modal-content">
+                    <button id="close-modal" class="close-btn">&times;</button>
+                    <div class="modal-header">
+                        <div class="modal-dot"></div>
+                        <h3>Detalle de la iniciativa</h3>
+                    </div>
+                    <!-- Ahora el texto es editable directamente -->
+                    <p id="modal-original-text" contenteditable="true" spellcheck="false" title="Haz clic para editar"
+                        class="editable-text">Aquí va la idea original...</p>
+
+                    <div id="modal-expansion-area" class="hidden">
+                        <h4>Estrategias (Lumina AI)</h4>
+                        <p id="modal-expansion-text"></p>
+                    </div>
+
+                    <!-- Nueva Sección: Centro de Control del Nodo (Fase 2) -->
+                    <div class="node-control-center">
+                        <div class="control-row node-operational-row">
+                            <div class="control-group">
+                                <label for="modal-status" class="options-label">Estado:</label>
+                                <select id="modal-status" class="glass-input">
+                                    <option value="pendiente">Pendiente</option><option value="en_progreso">En progreso</option>
+                                    <option value="bloqueado">Bloqueado</option><option value="completado">Completado</option>
+                                </select>
+                            </div>
+                            <div class="control-group">
+                                <label for="modal-priority" class="options-label">Prioridad:</label>
+                                <select id="modal-priority" class="glass-input">
+                                    <option value="alta">Alta</option><option value="media">Media</option><option value="baja">Baja</option>
+                                </select>
+                            </div>
+                            <div class="control-group progress-control">
+                                <label for="modal-progress" class="options-label">Progreso: <span id="modal-progress-value">0%</span></label>
+                                <input type="range" id="modal-progress" min="0" max="100" step="5" value="0">
+                            </div>
+                        </div>
+                        <div class="control-row">
+                            <div class="control-group">
+                                <label for="modal-date" class="options-label">Fecha Objetivo:</label>
+                                <input type="date" id="modal-date" class="glass-input">
+                            </div>
+
+                            <!-- Selector de Color / Tags Visuales movido aquí para compactar -->
+                            <div class="control-group">
+                            <span class="options-label">Color:</span>
+                                <div class="color-picker" id="modal-color-picker">
+                                    <div class="color-swatch active" data-color="default" title="Turquesa (Original)">
+                                    </div>
+                                    <div class="color-swatch" data-color="emerald" title="Esmeralda Vital"></div>
+                                    <div class="color-swatch" data-color="rose" title="Rosa Pasión"></div>
+                                    <div class="color-swatch" data-color="amber" title="Ámbar Creativo"></div>
+                                    <div class="color-swatch" data-color="indigo" title="Índigo Profundo"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="control-group full-width">
+                            <label for="modal-observations" class="options-label">Notas:</label>
+                            <textarea id="modal-observations" class="glass-textarea"
+                                placeholder="Escribe tus notas, reflexiones o detalles profundos aquí..."></textarea>
+                        </div>
+
+                        <!-- Próximos pasos -->
+                        <div class="satellites-section">
+                            <div class="satellites-header">
+                                <span class="options-label">Próximos pasos:</span>
+                                <button id="btn-ai-satellites" class="btn-micro-magic"
+                                    title="Proponer 3 próximos pasos con IA">✨ Proponer</button>
+                            </div>
+                            <div id="satellites-list">
+                                <!-- Los próximos pasos se generarán aquí -->
+                            </div>
+                            <div class="add-satellite-form">
+                                <input type="text" id="new-satellite-input" class="glass-input"
+                                    placeholder="Añadir próximo paso…">
+                                <button id="btn-add-satellite" class="btn-micro">+</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button id="btn-save-edit" class="btn-top hidden"
+                            style="margin-right:auto; border-color:var(--color-turquoise);">💾 Guardar Cambios</button>
+                        <button id="btn-expand" class="btn-magic">✨ Expandir Idea</button>
+                        <button id="btn-delete" class="btn-danger">🗑️ Borrar</button>
+                    </div>
+                </div>
+            </div> <!-- End Node Modal -->
+
+            <!-- Resumen estratégico -->
+            <div id="sintesis-modal" class="hidden">
+                <div class="modal-content" style="width: 700px;">
+                    <button id="close-sintesis" class="close-btn">&times;</button>
+                    <div class="modal-header">
+                        <div class="modal-dot"
+                            style="background: var(--color-indigo); box-shadow: 0 0 15px var(--color-indigo);"></div>
+                        <h3>Resumen estratégico</h3>
+                    </div>
+                    <div id="sintesis-content">
+                        <!-- Aquí va la respuesta generada por Groq -->
+                    </div>
+                </div>
+            </div> <!-- End Sintesis Modal -->
+
+            <!-- Archivo de iniciativas -->
+            <div id="blackhole-modal" class="hidden">
+                <div class="modal-content" style="width: 700px;">
+                    <button id="close-blackhole" class="close-btn">&times;</button>
+                    <div class="modal-header">
+                        <div class="modal-dot"
+                            style="background: #1a0033; box-shadow: 0 0 20px #6b21a8, 0 0 40px #1a0033;"></div>
+                        <h3 id="blackhole-title">Archivo</h3>
+                    </div>
+                    <p style="color:var(--color-silver); margin-bottom: 15px; font-size: 0.85rem;">Aquí puedes revisar
+                        las iniciativas archivadas y recuperarlas cuando vuelvan a ser relevantes.</p>
+                    <div id="blackhole-contents">
+                        <!-- Ideas absorbidas se renderizan aquí -->
+                    </div>
+                </div>
+            </div>
+
+        </div> <!-- End UI Layer -->
+
+        <!-- Panel Lateral de Chat (Consultoría Lumina) -->
+        <div id="chat-panel" class="chat-panel hidden">
+            <div class="chat-header">
+                <h3>💬 Pregunta a Lumi</h3>
+                <button id="close-chat" class="close-btn">&times;</button>
+            </div>
+            <div id="chat-messages" class="chat-messages">
+                <div class="chat-msg system">Hola, soy Lumi. Puedo ayudarte a aclarar prioridades, detectar bloqueos
+                    y decidir el siguiente paso.</div>
+            </div>
+            <div class="chat-input-area">
+                <input type="text" id="chat-input" class="glass-input" placeholder="Escribe tu pregunta..."
+                    autocomplete="off">
+                <button id="btn-send-chat" class="btn-micro-magic">Enviar</button>
+            </div>
+        </div>
+    </div> <!-- End App View --> <!-- CIERRE CORRECTO DE APP VIEW -->
+
+    <!-- Planet View — FUERA de app-view para que los clicks funcionen -->
+    <div id="planet-view" class="hidden">
+        <div class="planet-view-header">
+            <button id="planet-back-btn" class="planet-back">← Volver</button>
+            <div class="planet-view-title">
+                <span id="planet-view-icon"></span>
+                <h2 id="planet-view-name"></h2>
+                <span id="planet-view-count" class="planet-badge"></span>
+            </div>
+        </div>
+        <div id="planet-nodes-container"></div>
+    </div>
+
+    <!-- Guía y Status Sutil -->
+    <div id="status-text">Lumina lista</div>
+
+    <!-- Onboarding cinemático (oculto hasta el primer login/demo).
+         Debe estar ANTES de los scripts para que main.js encuentre sus elementos. -->
+    <div id="onboarding" class="onboarding hidden">
+        <div class="onboarding-backdrop"></div>
+        <div class="onboarding-card">
+            <div class="onboarding-dots" id="onboarding-dots"></div>
+            <div class="onboarding-icon" id="onboarding-icon">🦋</div>
+            <h3 id="onboarding-title">Bienvenido</h3>
+            <p id="onboarding-text"></p>
+            <div class="onboarding-actions">
+                <button type="button" id="btn-onboard-skip" class="onboarding-skip">Omitir</button>
+                <button type="button" id="btn-onboard-next" class="btn-micro-magic">Siguiente →</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="statsPanel.js?v=lumina-beta2"></script>
+    <script src="main.js?v=lumina-beta2"></script>
+</body>
+
 </html>
