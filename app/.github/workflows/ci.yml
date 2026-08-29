@@ -143,12 +143,12 @@ jobs:
           timeout 10 node server.js &
           SERVER_PID=$!
           sleep 5
-          curl -f http://localhost:3000 || curl -f http://localhost:3001 || echo "⚠️ Server health check skipped"
+          curl -f http://localhost:3100
           kill $SERVER_PID 2>/dev/null || true
         env:
           JWT_SECRET: ci-build-secret
           GROQ_API_KEY: fake-key-for-build
-          PORT: 3000
+          PORT: 3100
 
   # ──────────────────────────────────────────────
   # 5. CI Status Gate

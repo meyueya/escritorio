@@ -52,17 +52,17 @@ RUN mkdir -p uploads runtime-data && chown -R lumina:lumina uploads runtime-data
 # Cambiar a usuario no-root
 USER lumina
 
-# Exponer puerto
-EXPOSE 3000
+# Exponer puerto (3100: el 3000 queda reservado para AsistenteIA)
+EXPOSE 3100
 
 # Variables de entorno por defecto
 ENV NODE_ENV=production
-ENV PORT=3000
+ENV PORT=3100
 ENV DATA_DIR=/app/runtime-data
 
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD curl -fs http://localhost:3000/ || exit 1
+  CMD curl -fs http://localhost:3100/ || exit 1
 
 # Iniciar la aplicación con dumb-init
 ENTRYPOINT ["dumb-init", "--"]

@@ -94,6 +94,16 @@ actualFs.renameSync = function(oldPath, newPath) {
   return originalRenameSync.call(this, oldPath, newPath);
 };
 
+// Higiene entre archivos de test del mismo worker: el módulo `fs` es compartido
+// y el monkey-patching anterior contaminaría tests de módulos reales
+// (p.ej. tests/almacen.test.js) si no restauramos al terminar cada archivo.
+afterAll(() => {
+  actualFs.existsSync = originalExistsSync;
+  actualFs.readFileSync = originalReadFileSync;
+  actualFs.writeFileSync = originalWriteFileSync;
+  actualFs.renameSync = originalRenameSync;
+});
+
 // ===== MOCK: Groq SDK =====
 const mockGroqCreate = jest.fn().mockResolvedValue({
   choices: [{ message: { content: 'Resumen IA Mockeado' } }]

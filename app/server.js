@@ -125,6 +125,9 @@ const DATA_FILE = path.join(RUNTIME_DATA_DIR, 'data.json');
 const USERS_FILE = path.join(RUNTIME_DATA_DIR, 'users.json');
 const ACTIVITY_FILE = path.join(RUNTIME_DATA_DIR, 'activity.json');
 const BACKUP_FILE = path.join(RUNTIME_DATA_DIR, 'backup.json');
+
+// Puerto HTTP. 3100 por defecto: el 3000 queda reservado para AsistenteIA.
+const PORT = process.env.PORT || 3100;
 const configuredJwtSecret = (process.env.JWT_SECRET || '').trim();
 if (process.env.NODE_ENV === 'production' && configuredJwtSecret.length < 32) {
     throw new Error('JWT_SECRET debe existir y tener al menos 32 caracteres en producción.');
@@ -2861,7 +2864,7 @@ app.get('/api/stats/productivity', requireAuth, (req, res) => {
 // Configuración de Google OAuth2
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/api/integrations/calendar/callback';
+const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || `http://localhost:${PORT}/api/integrations/calendar/callback`;
 
 function createOAuth2Client() {
     return new google.auth.OAuth2(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI);
@@ -3158,7 +3161,7 @@ app.get('/api/integrations/slack/connect', requireAuth, (req, res) => {
             return res.status(503).json({ error: 'Slack no configurado. Agrega SLACK_CLIENT_ID y SLACK_CLIENT_SECRET al .env' });
         }
 
-        const slackAuthUrl = `https://slack.com/oauth/v2/authorize?client_id=${SLACK_CLIENT_ID}&scope=chat:write,channels:read&user_scope=&state=${nuevoOAuthState(req.userId)}&redirect_uri=${encodeURIComponent('http://localhost:3000/api/integrations/slack/callback')}`;
+        const slackAuthUrl = `https://slack.com/oauth/v2/authorize?client_id=${SLACK_CLIENT_ID}&scope=chat:write,channels:read&user_scope=&state=${nuevoOAuthState(req.userId)}&redirect_uri=${encodeURIComponent(`http://localhost:${PORT}/api/integrations/slack/callback`)}`;
 
         res.json({ authUrl: slackAuthUrl });
     } catch (error) {
@@ -3185,7 +3188,7 @@ app.get('/api/integrations/slack/callback', requireAuth, async (req, res) => {
                 client_id: SLACK_CLIENT_ID,
                 client_secret: SLACK_CLIENT_SECRET,
                 code: code,
-                redirect_uri: 'http://localhost:3000/api/integrations/slack/callback'
+                redirect_uri: `http://localhost:${PORT}/api/integrations/slack/callback`
             })
         });
 
@@ -3735,10 +3738,10 @@ app.get('/api/historial/:id', requireAuth, (req, res) => {
 // Siembra idempotente del modo demo (solo actúa si DEMO_MODE=true).
 asegurarDemo();
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Lumina Brain corriendo en http://localhost:${PORT}`);
-    console.log(`Abre tu navegador en: http://localhost:${PORT}`);
+const PUERTO_LISTEN = PORT;
+app.listen(PUERTO_LISTEN, () => {
+    console.log(`Lumina Brain corriendo en http://localhost:${PUERTO_LISTEN}`);
+    console.log(`Abre tu navegador en: http://localhost:${PUERTO_LISTEN}`);
 });
 
 // Error handler global: nunca filtrar stack traces al cliente.
