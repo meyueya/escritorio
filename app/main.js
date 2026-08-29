@@ -1334,6 +1334,7 @@ function showApp() {
     conectarTiempoReal(); // pizarra viva: abrir canal SSE en TODO inicio de sesión (login/demo/restauración)
     conectarMicLumi();    // voz local: botón de dictado junto al chat de Lumi
     conectarBotonPizarra(); // botón visible ✦ Pizarra (diagramas generados por Lumi)
+    conectarBotonDecisiones(); // botón 🧠 Decisiones (memoria que aprende)
     loadConstellation();
 
     // El micrófono solo se activa tras una acción explícita del usuario.
@@ -3726,6 +3727,159 @@ function cerrarPizarra() {
     pizarraAbierta = false;
     const navTop = document.querySelector('.top-nav');
     if (navTop) { navTop.classList.remove('nav-oculta'); navTop.style.display = ''; }
+}
+
+// ====== DECISION LEDGER + RAG: memoria de decisiones de Lumina ======
+function conectarBotonDecisiones() {
+    const contenedor = btnToday?.parentNode;
+    if (!contenedor || document.getElementById('btn-decisiones')) return;
+    const btn = document.createElement('button');
+    btn.id = 'btn-decisiones';
+    btn.type = 'button';
+    btn.className = btnToday?.className || 'nav-btn';
+    btn.textContent = '🧠 Decisiones';
+    btn.title = 'Memoria de decisiones: Lumi aprende de tu historia';
+    btn.addEventListener('click', abrirDecisiones);
+    contenedor.insertBefore(btn, btnToday);
+}
+
+function crearDecisionesDOM() {
+    if (document.getElementById('decisiones-modal')) return;
+    const overlay = document.createElement('div');
+    overlay.id = 'decisiones-modal';
+    overlay.className = 'pizarra-modal';
+    const shell = document.createElement('div');
+    shell.className = 'decisiones-shell';
+
+    const header = document.createElement('header');
+    header.className = 'pizarra-header';
+    const titulo = document.createElement('div');
+    titulo.className = 'pizarra-titulo';
+    titulo.textContent = '🧠 Memoria de decisiones';
+    const cerrar = document.createElement('button');
+    cerrar.className = 'quick-action';
+    cerrar.textContent = '✕';
+    cerrar.addEventListener('click', () => document.getElementById('decisiones-modal').classList.add('hidden'));
+    header.append(titulo, cerrar);
+
+    const lista = document.createElement('div');
+    lista.id = 'decisiones-lista';
+    lista.className = 'decisiones-lista';
+
+    const consulta = document.createElement('div');
+    consulta.className = 'decisiones-consulta';
+    const inputPregunta = document.createElement('input');
+    inputPregunta.id = 'decisiones-pregunta';
+    inputPregunta.className = 'pizarra-input';
+    inputPregunta.placeholder = 'Pregúntale a Lumina por tu historia… p. ej. «¿qué decidimos sobre Latam y qué pasó?»';
+    inputPregunta.addEventListener('keydown', (e) => { if (e.key === 'Enter') consultarDecisiones(); });
+    const btnPreguntar = document.createElement('button');
+    btnPreguntar.className = 'quick-action';
+    btnPreguntar.textContent = '✦ Preguntar';
+    btnPreguntar.addEventListener('click', consultarDecisiones);
+    consulta.append(inputPregunta, btnPreguntar);
+
+    const respuesta = document.createElement('div');
+    respuesta.id = 'decisiones-respuesta';
+    respuesta.className = 'decisiones-respuesta hidden';
+
+    const registrar = document.createElement('div');
+    registrar.className = 'decisiones-registrar';
+    const inputTema = document.createElement('input');
+    inputTema.id = 'decisiones-tema';
+    inputTema.className = 'pizarra-input';
+    inputTema.placeholder = 'Registrar decisión manual… (tema)';
+    const btnRegistrar = document.createElement('button');
+    btnRegistrar.className = 'quick-action';
+    btnRegistrar.textContent = '＋ Registrar';
+    btnRegistrar.addEventListener('click', registrarDecisionManual);
+    registrar.append(inputTema, btnRegistrar);
+
+    shell.append(header, lista, consulta, respuesta, registrar);
+    overlay.appendChild(shell);
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.classList.add('hidden'); });
+}
+
+function renderDecisiones(decisiones) {
+    const lista = document.getElementById('decisiones-lista');
+    if (!lista) return;
+    lista.replaceChildren();
+    if (!decisiones.length) {
+        const vacio = document.createElement('div');
+        vacio.className = 'decisiones-vacio';
+        vacio.textContent = 'Aún no hay decisiones. Completa tareas en el mapa (✓ Hecho) o regístralas abajo — Lumina irá construyendo tu memoria.';
+        lista.appendChild(vacio);
+        return;
+    }
+    decisiones.slice(0, 10).forEach(d => {
+        const fila = document.createElement('div');
+        fila.className = 'decision-fila';
+        const fecha = document.createElement('span');
+        fecha.className = 'decision-fecha';
+        fecha.textContent = String(d.fecha).slice(0, 10);
+        const tema = document.createElement('span');
+        tema.className = 'decision-tema';
+        tema.textContent = d.tema;
+        const res = document.createElement('span');
+        res.className = 'decision-resultado';
+        res.textContent = d.resultado === 'completado' ? '✓ completado' : d.resultado === 'archivado' ? '🗄️ archivado' : d.resultado;
+        fila.append(fecha, tema, res);
+        lista.appendChild(fila);
+    });
+}
+
+async function abrirDecisiones() {
+    crearDecisionesDOM();
+    document.getElementById('decisiones-modal').classList.remove('hidden');
+    try {
+        const resp = await fetch('/api/decisiones', { headers: { ...getHeaders() } });
+        const data = await resp.json();
+        renderDecisiones(data.decisiones || []);
+    } catch (err) {
+        console.warn('[Decisiones] Error cargando:', err.message);
+    }
+}
+
+async function consultarDecisiones() {
+    const input = document.getElementById('decisiones-pregunta');
+    const pregunta = input.value.trim();
+    if (!pregunta) return;
+    const respBox = document.getElementById('decisiones-respuesta');
+    respBox.classList.remove('hidden');
+    respBox.textContent = '🧠 Lumina consultando tu memoria…';
+    try {
+        const resp = await fetch('/api/decisiones/consultar', {
+            method: 'POST',
+            headers: { ...getHeaders() },
+            body: JSON.stringify({ pregunta })
+        });
+        const data = await resp.json();
+        respBox.textContent = data.respuesta || 'Sin respuesta.';
+        respBox.dataset.provider = data.provider;
+        respBox.title = `Basado en ${data.decisionesUsadas || 0} decisiones · provider: ${data.provider}`;
+        if (typeof LuminaVoice !== 'undefined' && LuminaVoice.speak) LuminaVoice.speak(data.respuesta);
+    } catch (err) {
+        respBox.textContent = 'No se pudo consultar la memoria.';
+    }
+}
+
+async function registrarDecisionManual() {
+    const input = document.getElementById('decisiones-tema');
+    const tema = input.value.trim();
+    if (!tema) return;
+    try {
+        await fetch('/api/decisiones', {
+            method: 'POST',
+            headers: { ...getHeaders() },
+            body: JSON.stringify({ tema, resultado: 'decidido' })
+        });
+        input.value = '';
+        showLuminaToast('🧠 Decisión registrada');
+        abrirDecisiones(); // refrescar lista
+    } catch (err) {
+        showLuminaToast('No se pudo registrar la decisión');
+    }
 }
 
 // ====== VOZ LOCAL: dictar a Lumi con el micrófono del Mac ======

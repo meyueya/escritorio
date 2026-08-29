@@ -3615,6 +3615,37 @@ body {
 .pizarra-el:hover .pizarra-el-del { display: flex; }
 .pizarra-titulo { cursor: text; }
 .pizarra-titulo[contenteditable="true"] { outline: 1px dashed rgba(17,180,212,0.7); outline-offset: 4px; border-radius: 4px; min-width: 120px; }
+
+/* ===== DECISION LEDGER: memoria de decisiones ===== */
+.decisiones-shell {
+    width: min(92vw, 720px); max-height: min(88vh, 800px);
+    background: #0b0f24; border: 1px solid rgba(17, 180, 212, 0.35);
+    border-radius: 16px;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.6), inset 0 0 60px rgba(17,180,212,0.06);
+    display: flex; flex-direction: column; overflow: hidden;
+}
+.decisiones-lista { flex: 1; overflow: auto; padding: 14px 18px; display: flex; flex-direction: column; gap: 8px; min-height: 120px; }
+.decisiones-vacio { color: rgba(232,246,255,0.4); font-size: 0.9rem; text-align: center; padding: 30px 20px; }
+.decision-fila {
+    display: grid; grid-template-columns: 90px 1fr auto; gap: 10px; align-items: center;
+    background: rgba(255,255,255,0.05); border-radius: 8px; padding: 9px 12px;
+}
+.decision-fecha { color: rgba(159,220,255,0.75); font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+.decision-tema { color: #e8f6ff; font-size: 0.9rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.decision-resultado {
+    font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+    color: #68e5d2; background: rgba(104,229,210,0.12); padding: 3px 8px; border-radius: 20px;
+}
+.decisiones-consulta { display: flex; gap: 8px; padding: 10px 18px; border-top: 1px solid rgba(255,255,255,0.08); }
+.decisiones-consulta .pizarra-input { flex: 1; max-width: none; }
+.decisiones-respuesta {
+    margin: 0 18px 12px; padding: 12px 16px;
+    background: rgba(17,180,212,0.08); border: 1px solid rgba(17,180,212,0.3);
+    border-radius: 10px; color: #d6f3ff; font-size: 0.9rem; line-height: 1.5; white-space: pre-wrap;
+}
+.decisiones-respuesta.hidden { display: none; }
+.decisiones-registrar { display: flex; gap: 8px; padding: 0 18px 14px; }
+.decisiones-registrar .pizarra-input { flex: 1; max-width: none; }
 .pizarra-el[data-tipo="tarea"] { background: linear-gradient(160deg, #d8ffe4 0%, #a9f5c4 100%); }
 .pizarra-el[data-tipo="proyecto"] { background: linear-gradient(160deg, #ffe0f0 0%, #ffc2dd 100%); }
 .pizarra-el[data-tipo="idea"] { background: linear-gradient(160deg, #e2e8ff 0%, #c3d0ff 100%); }
