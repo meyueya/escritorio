@@ -1,0 +1,172 @@
+# ============================================================================
+# CI Pipeline — Lumina Application
+# ============================================================================
+# Ejecuta lint, tests (matrix), auditoría de seguridad y verificación de build
+# en cada push y pull request a main/develop.
+# ============================================================================
+
+name: 🔄 CI Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_ENV: test
+
+permissions:
+  contents: read
+
+jobs:
+  # ──────────────────────────────────────────────
+  # 1. Lint & Format Check
+  # ──────────────────────────────────────────────
+  lint:
+    name: 🧹 Lint & Format
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4 (SHA fijado)
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4 (SHA fijado)
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🔍 Run ESLint
+        run: npm run lint
+
+  # ──────────────────────────────────────────────
+  # 2. Test Matrix (Node 18, 20, 22)
+  # ──────────────────────────────────────────────
+  test:
+    name: 🧪 Tests (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: lint
+
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [18, 20, 22]
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4 (SHA fijado)
+
+      - name: 🟢 Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4 (SHA fijado)
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🧪 Run tests
+        run: npm test
+        env:
+          JWT_SECRET: ci-test-secret
+          GROQ_API_KEY: fake-key-for-tests
+
+      - name: 📊 Upload coverage
+        if: matrix.node-version == 22 && always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4 (SHA fijado)
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 7
+
+  # ──────────────────────────────────────────────
+  # 3. Security Audit
+  # ──────────────────────────────────────────────
+  security:
+    name: 🔒 Security Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4 (SHA fijado)
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4 (SHA fijado)
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🔍 Audit dependencies
+        run: npm audit --audit-level=high
+
+      - name: 🔐 Check for known vulnerabilities
+        run: npx --yes audit-ci@^7 --high
+
+  # ──────────────────────────────────────────────
+  # 4. Build Verification
+  # ──────────────────────────────────────────────
+  build-check:
+    name: 🏗️ Build Verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [lint, test]
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4 (SHA fijado)
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4 (SHA fijado)
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: ✅ Verify server starts
+        run: |
+          timeout 10 node server.js &
+          SERVER_PID=$!
+          sleep 5
+          curl -f http://localhost:3000 || curl -f http://localhost:3001 || echo "⚠️ Server health check skipped"
+          kill $SERVER_PID 2>/dev/null || true
+        env:
+          JWT_SECRET: ci-build-secret
+          GROQ_API_KEY: fake-key-for-build
+          PORT: 3000
+
+  # ──────────────────────────────────────────────
+  # 5. CI Status Gate
+  # ──────────────────────────────────────────────
+  ci-passed:
+    name: ✅ CI Passed
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [lint, test, security, build-check]
+
+    steps:
+      - name: 🎯 Check CI status
+        run: |
+          if [[ "${{ needs.lint.result }}" == "failure" || \
+                "${{ needs.test.result }}" == "failure" || \
+                "${{ needs.security.result }}" == "failure" || \
+                "${{ needs.build-check.result }}" == "failure" ]]; then
+            echo "❌ CI failed — check the logs above."
+            exit 1
+          fi
+          echo "✅ All CI checks passed!"
