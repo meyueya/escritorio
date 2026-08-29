@@ -1327,6 +1327,7 @@ function showApp() {
     window.lumiContext = { historial: [], ultimoNodoRevisadoId: null, ultimaPropuestaMejora: null };
     window.lastAIResponse = '';
 
+    conectarTiempoReal(); // pizarra viva: abrir canal SSE en TODO inicio de sesión (login/demo/restauración)
     loadConstellation();
 
     // El micrófono solo se activa tras una acción explícita del usuario.
@@ -3117,6 +3118,12 @@ async function loadConstellation() {
         if (!response.ok) throw new Error("Fallo al cargar memoria.");
         const ideas = await response.json();
 
+        // Limpiar render previo para que la re-sincronización sea idempotente
+        // (si no, los cambios en vivo duplicarían burbujas en el mapa).
+        floatNodes.forEach(n => { if (n.parentNode) n.parentNode.removeChild(n); });
+        floatNodes = [];
+        if (neuralCanvas) neuralCanvas.querySelectorAll('line').forEach(l => l.remove());
+
         statusText.innerText = `Mapa de ${currentUsername} restaurado.`;
         conectarTiempoReal(); // pizarra viva: recibir cambios de otros dispositivos
 
@@ -3145,17 +3152,24 @@ function conectarTiempoReal() {
     if (realtimeSource || !currentUsername) return;
     try {
         realtimeSource = new EventSource('/api/stream'); // auth por cookie HttpOnly (same-origin)
+        realtimeSource.onopen = () => console.log('[TiempoReal] Canal SSE abierto');
         realtimeSource.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
-                if (data.tipo === 'datos-actualizados') {
+                if (data.tipo === 'conectado') {
+                    showLuminaToast('🛰️ Sincronización en vivo activa');
+                } else if (data.tipo === 'datos-actualizados') {
                     if (data.usuario && data.usuario !== currentUsername) {
                         showLuminaToast(`🔄 ${data.usuario} actualizó el mapa — sincronizando…`);
                     }
                     loadConstellation();
                     if (todayModal && !todayModal.classList.contains('hidden')) loadToday();
                 }
+                // 'presencia': ignorado en v1 (podría mostrarse como indicador)
             } catch { /* heartbeats ": ping" no son JSON */ }
+        };
+        realtimeSource.onerror = () => {
+            console.warn('[TiempoReal] Canal SSE interrumpido; reintentando automáticamente…');
         };
     } catch (err) {
         console.warn('[TiempoReal] SSE no disponible:', err.message);
