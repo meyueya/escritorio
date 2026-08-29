@@ -1,24 +1,58 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Coverage & Testing
+coverage/
+*.lcov
+.nyc_output/
+
+# Build & Output
+dist/
+build/
+
 # Logs
-logs
+logs/
 *.log
 npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
-
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
+# OS Files
 .DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE
+.vscode/
+.idea/
+*.sublime-*
+
+# Docker
+docker-compose.override.yml
+
+# Uploads (user-generated content)
+uploads/*
+!uploads/.gitkeep
+
+# Data files (runtime-generated)
+data.json
+users.json
+activity.json
+backup.json
+
+# SQLite (WAL) + respaldos de migración
+*.db
+*.db-wal
+*.db-shm
+*.migrado
+
+# Temporary files
+tmp/
+temp/
+*.tmp

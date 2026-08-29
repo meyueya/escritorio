@@ -31,6 +31,30 @@ let mockUsersDb = [];
 let mockBackupDb = [];
 let mockActivityDb = [];
 
+// ===== MOCK: capa de almacenamiento SQLite (almacen.js) =====
+// Los tests operan 100% en memoria: initDB no toca disco y leer/guardar
+// redirigen a los arrays mock. server.js consume la misma API que antes.
+jest.mock('../almacen', () => ({
+    initDB: () => {},
+    closeDB: () => {},
+    exportarJSON: () => [],
+    leerJSON: (archivo) => {
+        const nombre = String(archivo).split('/').pop();
+        if (nombre === 'data.json') return mockDataDb;
+        if (nombre === 'users.json') return mockUsersDb;
+        if (nombre === 'backup.json') return mockBackupDb;
+        if (nombre === 'activity.json') return mockActivityDb;
+        return [];
+    },
+    guardarJSON: (archivo, data) => {
+        const nombre = String(archivo).split('/').pop();
+        if (nombre === 'data.json') mockDataDb = data;
+        else if (nombre === 'users.json') mockUsersDb = data;
+        else if (nombre === 'backup.json') mockBackupDb = data;
+        else if (nombre === 'activity.json') mockActivityDb = data;
+    }
+}));
+
 // ===== MOCK: fs =====
 // Interceptamos read/write de los JSON files para que operen en memoria.
 const actualFs = require('fs');

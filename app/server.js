@@ -160,28 +160,12 @@ function borrarCookieSesion(res) {
     res.setHeader('Set-Cookie', `lumina_session=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0${secure}`);
 }
 
-// Utilidades para leer/escribir base de datos
-function leerJSON(archivo) {
-    if (!fs.existsSync(archivo)) {
-        fs.writeFileSync(archivo, JSON.stringify([]));
-    }
-    try {
-        const data = fs.readFileSync(archivo, 'utf-8');
-        return JSON.parse(data);
-    } catch (e) {
-        console.error(`[leerJSON] Error leyendo/parseando ${archivo}:`, e.message);
-        return [];
-    }
-}
-
-function guardarJSON(archivo, data) {
-    const tmpFile = archivo + '.tmp';
-    fs.writeFileSync(tmpFile, JSON.stringify(data, null, 2));
-    fs.renameSync(tmpFile, archivo);
-}
+// Utilidades para leer/escribir base de datos — capa SQLite (WAL), misma API que antes.
+const { initDB, leerJSON, guardarJSON } = require('./almacen');
+initDB(RUNTIME_DATA_DIR);
 
 // Mutex por archivo: serializa los bloques leer→mutar→guardar que cruzan un `await`,
-// evitando lost-updates entre peticiones concurrentes.
+// evitando lost-updates entre peticiones concurrentes (defensa adicional sobre WAL).
 const colasEscritura = new Map();
 function conLock(archivo, fn) {
     const prev = colasEscritura.get(archivo) || Promise.resolve();
