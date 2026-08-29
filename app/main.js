@@ -3372,6 +3372,7 @@ function renderPizarra(tablero) {
         div.dataset.tipo = el.tipo || 'nota';
         div.dataset.color = el.color || 'amarillo';
         div.dataset.conectaCon = (el.conectaCon || []).join(',');
+        div.dataset.conflictos = (el.conflictos || []).join(',');
         div.style.left = (el.x || 20) + '%';
         div.style.top = (el.y || 20) + '%';
         const icono = el.tipo === 'nota' ? '🗒️ ' : '';
@@ -3391,6 +3392,7 @@ function renderPizarra(tablero) {
             line.setAttribute('x2', rb.left - rl.left + rb.width / 2);
             line.setAttribute('y2', rb.top - rl.top + rb.height / 2);
             line.classList.add('pizarra-linea');
+            if ((el.conflictos || []).includes(otroId)) line.classList.add('conflicto');
             svg.appendChild(line);
         });
     });

@@ -50,6 +50,31 @@ describe('✦ Pizarra de Lumi (tablero de diagramas)', () => {
         expect(mockGroqCreate).not.toHaveBeenCalled();
     });
 
+    test('refleja las sinergias y conflictos REALES del mapa en el diagrama', async () => {
+        const { user, token } = await createTestUser('ceo_sin', 'test123', 'ceo');
+        getDataDb().push(
+            nodo({
+                id: 'a1', userId: user.id, orgId: user.orgId, resumen: 'Idea A',
+                links: [
+                    { to: 'a2', tipo: 'synergy', razon: 'Se potencian' },
+                    { to: 'a3', tipo: 'conflict', razon: 'Compiten' }
+                ]
+            }),
+            nodo({ id: 'a2', userId: user.id, orgId: user.orgId, resumen: 'Idea B' }),
+            nodo({ id: 'a3', userId: user.id, orgId: user.orgId, resumen: 'Idea C' })
+        );
+        const res = await request(app).post('/api/pizarra/generar')
+            .set('Authorization', `Bearer ${token}`)
+            .send({ nodos: ['a1', 'a2', 'a3'] });
+
+        expect(res.status).toBe(200);
+        const porTexto = Object.fromEntries(res.body.tablero.elementos.map(e => [e.texto, e]));
+        expect(porTexto['Idea A'].conectaCon).toContain(porTexto['Idea B'].id);
+        expect(porTexto['Idea A'].conectaCon).toContain(porTexto['Idea C'].id);
+        expect(porTexto['Idea A'].conflictos).toContain(porTexto['Idea C'].id);
+        expect(porTexto['Idea A'].conflictos).not.toContain(porTexto['Idea B'].id);
+    });
+
     test('generar con instrucción usa la IA y parsea su JSON', async () => {
         const { user, token } = await createTestUser('ceo_tab2', 'test123', 'ceo');
         getDataDb().push(nodo({ id: 'n1', userId: user.id, orgId: user.orgId, resumen: 'Marketing Q3' }));
