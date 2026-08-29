@@ -21,38 +21,38 @@
 
 **Conclusión ejecutiva:** el backend tiene una higiene de seguridad **notablemente superior a la media** (CORS por allowlist, cookie HttpOnly/SameSite/Secure, bcrypt, CSP, autorización por organización, sin secretos hardcodeados válidos, sin RCE). No hay P0. El riesgo real se concentra en **8 P1** (5 de backend + 3 de infraestructura) y en una **deuda técnica estructural** (cobertura del 38%, ~700 líneas de código muerto en frontend, I/O síncrono). El parche `fixes-P1.diff` elimina la totalidad de los P1 detectados.
 
-> ⛔ **Restricción de aprobación humana:** este informe y los parches son SUGERENCIAS. Ningún cambio se ha aplicado al código. Solo se aplicarán si escribes explícitamente **«Aplica las correcciones P0»** (no hay P0 — nada que aplicar con ese comando) o **«Acepta PR»** (aplica ambos parches y commitea en rama de trabajo, no en `main`).
+> ✅ **Estado de aplicación (actualizado):** los cimientos fueron aprobados por el usuario y aplicados en la rama **`audit/foundations`** (commit `f6114da`, empujada a origin; suite re-validada en el working tree real: **81/81 ✅**). `main` permanece intacto. PR sugerido por GitHub: https://github.com/meyueya/escritorio/pull/new/audit/foundations — el merge a `main` requiere tu revisión explícita. Los ítems «Recomendación» siguen pendientes de decisión.
 
 ---
 
 ## 2. Tabla de riesgos
 
-Estado: **Pendiente** = corregido en parche pero NO aplicado aún al código real · **Recomendación** = incluido en informe, requiere decisión de diseño.
+Estado: **Corregido** = aplicado en rama `audit/foundations` (commit `f6114da`), pendiente de merge a `main` · **Recomendación** = incluido en informe, requiere decisión de diseño.
 
 | # | Sev | Archivo | Línea(s) | Hallazgo (OWASP) | Estado | Parche |
 |---|---|---|---|---|---|---|
-| 1 | **P1** | server.js | 222, 953 | IDOR entre organizaciones vía filtro `area` (A01) | Pendiente | P1 |
-| 2 | **P1** | server.js | 2895, 2909-2945, 3101, 3113-3163 | Callbacks OAuth sin sesión + `state` predecible = secuestro de integración (A01/A07) | Pendiente | P1 |
-| 3 | **P1** | server.js | 1646-1662, 2150-2175, 1254-1258 | Prompt injection: input de usuario sin delimitar en prompts con contexto cross-usuario (LLM01) | Pendiente | P1 |
-| 4 | **P1** | server.js | 1129/1165, 1233/1275, 1291/1335, 1391/1440, 1807/1906 | Race condition lost-update en 5 rutas IA (pérdida de datos) | Pendiente | P1 |
-| 5 | **P1** | server.js | 848, 857, 903, 1190, 1247, 1306, 1403, 1709, 1765, 2059, 2188, 2930, 3149, 3185, 3226, 3272 | Datos sensibles del usuario en logs (transcripciones de voz, emails, contenido) (A09) | Pendiente | P1 |
-| 6 | **P1** | Dockerfile | 9, 21 | Imagen base `node:22-alpine` sin digest (A06 supply-chain) | Pendiente | P1 |
-| 7 | **P1** | .github/workflows/*.yml | — | GitHub Actions fijadas por tag mutable (`@v4`) (A06) | Pendiente | P1 |
-| 8 | **P1** | ci.yml | 113-119, 167-172 | Job `security` no-op: `continue-on-error` + gate que no evalúa `needs.security.result` | Pendiente | P1 |
-| 9 | P2 | server.js | 851-853 | Extensión de upload derivada de `originalname` (DoS/antipatrón; recalibrado desde P1, ver §7) | Pendiente | P2P3 |
+| 1 | **P1** | server.js | 222, 953 | IDOR entre organizaciones vía filtro `area` (A01) | Corregido | P1 |
+| 2 | **P1** | server.js | 2895, 2909-2945, 3101, 3113-3163 | Callbacks OAuth sin sesión + `state` predecible = secuestro de integración (A01/A07) | Corregido | P1 |
+| 3 | **P1** | server.js | 1646-1662, 2150-2175, 1254-1258 | Prompt injection: input de usuario sin delimitar en prompts con contexto cross-usuario (LLM01) | Corregido | P1 |
+| 4 | **P1** | server.js | 1129/1165, 1233/1275, 1291/1335, 1391/1440, 1807/1906 | Race condition lost-update en 5 rutas IA (pérdida de datos) | Corregido | P1 |
+| 5 | **P1** | server.js | 848, 857, 903, 1190, 1247, 1306, 1403, 1709, 1765, 2059, 2188, 2930, 3149, 3185, 3226, 3272 | Datos sensibles del usuario en logs (transcripciones de voz, emails, contenido) (A09) | Corregido | P1 |
+| 6 | **P1** | Dockerfile | 9, 21 | Imagen base `node:22-alpine` sin digest (A06 supply-chain) | Corregido | P1 |
+| 7 | **P1** | .github/workflows/*.yml | — | GitHub Actions fijadas por tag mutable (`@v4`) (A06) | Corregido | P1 |
+| 8 | **P1** | ci.yml | 113-119, 167-172 | Job `security` no-op: `continue-on-error` + gate que no evalúa `needs.security.result` | Corregido | P1 |
+| 9 | P2 | server.js | 851-853 | Extensión de upload derivada de `originalname` (DoS/antipatrón; recalibrado desde P1, ver §7) | Corregido | P2P3 |
 | 10 | P2 | server.js | 109-112, 3414 | MIME validado solo por cabecera del cliente (spoofeable); falta magic-bytes (A04) | Recomendación | — |
-| 11 | P2 | server.js | 3244-3263 | Email a destinatario arbitrario con clave SendGrid + HTML sin escapar (A03) | Pendiente | P2P3 |
-| 12 | P2 | server.js | 2487, 3372, 3238, 1619, 2121, 1757 | Sin rate-limit en endpoints de coste externo (IA/TTS/SendGrid) (A04) | Pendiente | P2P3 |
-| 13 | P2 | server.js | 130, 485, 248 | Secreto JWT de test + credencial demo fijas; `DEMO_MODE` activable en producción (A02/A07) | Pendiente | P2P3 |
+| 11 | P2 | server.js | 3244-3263 | Email a destinatario arbitrario con clave SendGrid + HTML sin escapar (A03) | Corregido | P2P3 |
+| 12 | P2 | server.js | 2487, 3372, 3238, 1619, 2121, 1757 | Sin rate-limit en endpoints de coste externo (IA/TTS/SendGrid) (A04) | Corregido | P2P3 |
+| 13 | P2 | server.js | 130, 485, 248 | Secreto JWT de test + credencial demo fijas; `DEMO_MODE` activable en producción (A02/A07) | Corregido | P2P3 |
 | 14 | P2 | server.js | 2920-2928, 3139-3147, 1011 | Tokens OAuth en claro en `users.json` + `ultimoError` interno expuesto en `/api/ia/modelos` (A02/A09) | Recomendación | — |
-| 15 | P2 | server.js | (final del archivo) | Sin error-handler global → stack traces de Express en entornos no-prod (A05/A09) | Pendiente | P2P3 |
-| 16 | P2 | tests/models.test.js, tests/fallback.test.js | 1-3 | Tests acoplados al entorno ambiental (`DEMO_MODE` heredado) — suite no determinista | Pendiente | P2P3 |
+| 15 | P2 | server.js | (final del archivo) | Sin error-handler global → stack traces de Express en entornos no-prod (A05/A09) | Corregido | P2P3 |
+| 16 | P2 | tests/models.test.js, tests/fallback.test.js | 1-3 | Tests acoplados al entorno ambiental (`DEMO_MODE` heredado) — suite no determinista | Corregido | P2P3 |
 | 17 | P2 | ci.yml | 46, 76, 111, 141 | `npm ci` sin `--ignore-scripts` en PRs (postinstall de terceros) (A06) | Recomendación | — |
 | 18 | P2 | jest.config.js | 6 | `forceExit` enmascara fugas de handles | Recomendación | — |
 | 19 | P2 | tests/security.test.js | — | Sin tests de rate-limit, HSTS ni IDOR multi-organización | Recomendación | — |
 | 20 | P2 | cd.yml | 131-135, 164-168 | Health-check/deploy `echo`-only: CD declara éxito sin desplegar | Recomendación | — |
 | 21 | P2 | .gitignore | 3 | `package-lock.json` ignorado pero trackeado (contradicción que rompe `npm ci`) | Recomendación | — |
-| 22 | P2 | .dockerignore | — | `backup.json`/`activity.json` (datos reales) entran al build context | Pendiente | P2P3 |
+| 22 | P2 | .dockerignore | — | `backup.json`/`activity.json` (datos reales) entran al build context | Corregido | P2P3 |
 | 23 | P2 | .env, users.json, data.json, activity.json, backup.json | — | Permisos `644` world-readable con secretos/hashes bcrypt/PII (hardening local) | Recomendación | — |
 | 24 | P2 | refs/codex/turn-diffs/… | — | `activity.json` con mensajes personales alcanzable desde checkpoints locales de Codex CLI (no en origin; limpiar) | Recomendación | — |
 | 25-44 | P3 | varios | ver §5 | Deuda técnica: I/O síncrono, JWT alg sin pin, sin HSTS, limiter sin purga, token duplicado en body, validación x/y/color, redirect_uri localhost, funciones de 400 líneas, ~700 LOC código muerto, `authToken` vestigial, doble submit, loop 50 ms, CDN sin SRI, eslint sin plugin de seguridad, higiene de workspace | Parcialmente parcheados (HSTS, alg pin, purga, SRI, limiter, codeql push → P2P3) | P2P3 |
