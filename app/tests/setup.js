@@ -30,6 +30,7 @@ let mockDataDb = [];
 let mockUsersDb = [];
 let mockBackupDb = [];
 let mockActivityDb = [];
+let mockTablerosDb = [];
 
 // ===== MOCK: capa de almacenamiento SQLite (almacen.js) =====
 // Los tests operan 100% en memoria: initDB no toca disco y leer/guardar
@@ -44,6 +45,7 @@ jest.mock('../almacen', () => ({
         if (nombre === 'users.json') return mockUsersDb;
         if (nombre === 'backup.json') return mockBackupDb;
         if (nombre === 'activity.json') return mockActivityDb;
+        if (nombre === 'tableros.json') return mockTablerosDb;
         return [];
     },
     guardarJSON: (archivo, data) => {
@@ -52,6 +54,7 @@ jest.mock('../almacen', () => ({
         else if (nombre === 'users.json') mockUsersDb = data;
         else if (nombre === 'backup.json') mockBackupDb = data;
         else if (nombre === 'activity.json') mockActivityDb = data;
+        else if (nombre === 'tableros.json') mockTablerosDb = data;
     }
 }));
 
@@ -208,6 +211,7 @@ module.exports = {
     mockUsersDb = [];
     mockBackupDb = [];
     mockActivityDb = [];
+    mockTablerosDb = [];
     mockUploadFile = null;
   },
 

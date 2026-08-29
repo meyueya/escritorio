@@ -1333,7 +1333,7 @@ function showApp() {
 
     conectarTiempoReal(); // pizarra viva: abrir canal SSE en TODO inicio de sesión (login/demo/restauración)
     conectarMicLumi();    // voz local: botón de dictado junto al chat de Lumi
-    conectarBotonNota();  // botón visible para crear notas sin doble clic
+    conectarBotonPizarra(); // botón visible ✦ Pizarra (diagramas generados por Lumi)
     loadConstellation();
 
     // El micrófono solo se activa tras una acción explícita del usuario.
@@ -3169,6 +3169,9 @@ function conectarTiempoReal() {
                 const data = JSON.parse(event.data);
                 if (data.tipo === 'conectado') {
                     showLuminaToast('🛰️ Sincronización en vivo activa');
+                } else if (data.tipo === 'pizarra-actualizada') {
+                    if (data.tabId && data.tabId === tabId) return;
+                    if (pizarraAbierta) abrirPizarra(); // recargar el tablero en vivo
                 } else if (data.tipo === 'datos-actualizados') {
                     // Cambio propio (misma pestaña): la UI ya está al día → ignorar.
                     if (data.tabId && data.tabId === tabId) return;
@@ -3239,20 +3242,299 @@ if (appView) {
     });
 }
 
-// Botón visible "🗒️ Nota": alternativa al doble clic para crear notas.
-function conectarBotonNota() {
+// ====== PIZARRA DE LUMI: tablero de diagramas generados por la IA ======
+let pizarraAbierta = false;
+
+function conectarBotonPizarra() {
     const contenedor = btnToday?.parentNode;
-    if (!contenedor || document.getElementById('btn-note')) return;
-    const btnNote = document.createElement('button');
-    btnNote.id = 'btn-note';
-    btnNote.type = 'button';
-    btnNote.className = btnToday?.className || 'nav-btn';
-    btnNote.textContent = '🗒️ Nota';
-    btnNote.title = 'Crear una nota adhesiva en el centro de la pizarra';
-    btnNote.addEventListener('click', () => {
-        crearNotaEn(window.innerWidth / 2, window.innerHeight / 2);
+    if (!contenedor || document.getElementById('btn-pizarra')) return;
+    const btn = document.createElement('button');
+    btn.id = 'btn-pizarra';
+    btn.type = 'button';
+    btn.className = btnToday?.className || 'nav-btn';
+    btn.textContent = '✦ Pizarra';
+    btn.title = 'Abre la pizarra: dile a Lumi qué diagrama quieres ver';
+    btn.addEventListener('click', abrirPizarra);
+    contenedor.insertBefore(btn, btnToday);
+}
+
+function crearPizarraDOM() {
+    if (document.getElementById('pizarra-modal')) return;
+    const overlay = document.createElement('div');
+    overlay.id = 'pizarra-modal';
+    overlay.className = 'pizarra-modal';
+    const shell = document.createElement('div');
+    shell.className = 'pizarra-shell';
+
+    const header = document.createElement('header');
+    header.className = 'pizarra-header';
+    const titulo = document.createElement('div');
+    titulo.id = 'pizarra-titulo';
+    titulo.className = 'pizarra-titulo';
+    titulo.textContent = '✦ Pizarra de Lumi';
+    const acciones = document.createElement('div');
+    acciones.className = 'pizarra-acciones';
+    const input = document.createElement('input');
+    input.id = 'pizarra-input';
+    input.className = 'pizarra-input';
+    input.placeholder = 'Dile a Lumi qué diagrama quieres… p. ej. «Mapa del Q3 con las tareas de marketing»';
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') generarDiagrama(); });
+    const btnGen = document.createElement('button');
+    btnGen.id = 'pizarra-generar';
+    btnGen.className = 'quick-action';
+    btnGen.textContent = '✦ Generar';
+    btnGen.addEventListener('click', generarDiagrama);
+    const btnNodos = document.createElement('button');
+    btnNodos.id = 'pizarra-nodos';
+    btnNodos.className = 'quick-action';
+    btnNodos.textContent = '⤴ Traer nodos';
+    btnNodos.addEventListener('click', mostrarPanelNodos);
+    const btnCerrar = document.createElement('button');
+    btnCerrar.id = 'pizarra-cerrar';
+    btnCerrar.className = 'quick-action';
+    btnCerrar.textContent = '✕';
+    btnCerrar.addEventListener('click', cerrarPizarra);
+    acciones.append(input, btnGen, btnNodos, btnCerrar);
+    header.append(titulo, acciones);
+
+    const panelNodos = document.createElement('div');
+    panelNodos.id = 'pizarra-nodos-panel';
+    panelNodos.className = 'pizarra-nodos-panel hidden';
+
+    const lienzo = document.createElement('div');
+    lienzo.id = 'pizarra-lienzo';
+    lienzo.className = 'pizarra-lienzo';
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.id = 'pizarra-svg';
+    svg.classList.add('pizarra-svg');
+    const capas = document.createElement('div');
+    capas.id = 'pizarra-capas';
+    capas.className = 'pizarra-capas';
+    lienzo.append(svg, capas);
+
+    const footer = document.createElement('footer');
+    footer.className = 'pizarra-footer';
+    footer.textContent = 'Doble clic en el lienzo = nota nueva · Arrastra para mover · Se sincroniza en vivo entre ventanas';
+
+    shell.append(header, panelNodos, lienzo, footer);
+    overlay.appendChild(shell);
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) cerrarPizarra(); });
+    lienzo.addEventListener('dblclick', (e) => {
+        if (e.target !== lienzo && e.target !== svg) return;
+        crearNotaPizarra(e.clientX, e.clientY);
     });
-    contenedor.insertBefore(btnNote, btnToday);
+}
+
+function leerEstadoPizarra() {
+    const lienzo = document.getElementById('pizarra-lienzo');
+    const capas = document.getElementById('pizarra-capas');
+    if (!lienzo || !capas) return { titulo: 'Mi pizarra', elementos: [] };
+    const rect = lienzo.getBoundingClientRect();
+    const elementos = [...capas.querySelectorAll('.pizarra-el')].map(el => ({
+        id: el.dataset.id,
+        texto: el.dataset.texto || '',
+        tipo: el.dataset.tipo || 'nota',
+        color: el.dataset.color || 'amarillo',
+        x: parseFloat(el.style.left),
+        y: parseFloat(el.style.top),
+        conectaCon: el.dataset.conectaCon ? el.dataset.conectaCon.split(',') : []
+    }));
+    void rect;
+    return { titulo: document.getElementById('pizarra-titulo')?.textContent?.replace('✦ ', '') || 'Mi pizarra', elementos };
+}
+
+async function guardarPizarra() {
+    const tablero = leerEstadoPizarra();
+    try {
+        await fetch('/api/pizarra', { method: 'PUT', headers: { ...getHeaders() }, body: JSON.stringify({ tablero }) });
+    } catch (err) {
+        console.warn('[Pizarra] No se pudo guardar:', err.message);
+    }
+}
+
+function renderPizarra(tablero) {
+    const capas = document.getElementById('pizarra-capas');
+    const svg = document.getElementById('pizarra-svg');
+    const lienzo = document.getElementById('pizarra-lienzo');
+    if (!capas || !svg || !lienzo) return;
+    capas.replaceChildren();
+    svg.replaceChildren();
+    if (!tablero || !Array.isArray(tablero.elementos)) return;
+    document.getElementById('pizarra-titulo').textContent = '✦ ' + (tablero.titulo || 'Pizarra de Lumi');
+
+    const mapa = {};
+    tablero.elementos.forEach(el => {
+        const div = document.createElement('div');
+        div.className = 'pizarra-el';
+        div.dataset.id = el.id;
+        div.dataset.texto = el.texto;
+        div.dataset.tipo = el.tipo || 'nota';
+        div.dataset.color = el.color || 'amarillo';
+        div.dataset.conectaCon = (el.conectaCon || []).join(',');
+        div.style.left = (el.x || 20) + '%';
+        div.style.top = (el.y || 20) + '%';
+        const icono = el.tipo === 'nota' ? '🗒️ ' : '';
+        div.textContent = `${icono}${el.texto}`;
+        div.addEventListener('mousedown', (e) => iniciarDragPizarra(e, div));
+        capas.appendChild(div);
+        mapa[el.id] = div;
+    });
+    tablero.elementos.forEach(el => {
+        (el.conectaCon || []).forEach(otroId => {
+            const a = mapa[el.id], b = mapa[otroId];
+            if (!a || !b) return;
+            const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect(), rl = lienzo.getBoundingClientRect();
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('x1', ra.left - rl.left + ra.width / 2);
+            line.setAttribute('y1', ra.top - rl.top + ra.height / 2);
+            line.setAttribute('x2', rb.left - rl.left + rb.width / 2);
+            line.setAttribute('y2', rb.top - rl.top + rb.height / 2);
+            line.classList.add('pizarra-linea');
+            svg.appendChild(line);
+        });
+    });
+}
+
+function iniciarDragPizarra(e, el) {
+    e.preventDefault();
+    const lienzo = document.getElementById('pizarra-lienzo');
+    const rect = lienzo.getBoundingClientRect();
+    const mover = (ev) => {
+        const x = ((ev.clientX - rect.left) / rect.width) * 100;
+        const y = ((ev.clientY - rect.top) / rect.height) * 100;
+        el.style.left = Math.max(2, Math.min(93, x)) + '%';
+        el.style.top = Math.max(3, Math.min(90, y)) + '%';
+        redibujarLineasPizarra();
+    };
+    const soltar = () => {
+        document.removeEventListener('mousemove', mover);
+        document.removeEventListener('mouseup', soltar);
+        guardarPizarra();
+    };
+    document.addEventListener('mousemove', mover);
+    document.addEventListener('mouseup', soltar);
+}
+
+function redibujarLineasPizarra() {
+    const estado = leerEstadoPizarra();
+    renderPizarra(estado);
+}
+
+function crearNotaPizarra(clientX, clientY) {
+    const lienzo = document.getElementById('pizarra-lienzo');
+    const rect = lienzo.getBoundingClientRect();
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'sticky-input';
+    input.style.left = `${clientX}px`;
+    input.style.top = `${clientY}px`;
+    document.body.appendChild(input);
+    input.focus();
+    const guardar = () => {
+        const texto = input.value.trim();
+        input.remove();
+        if (!texto) return;
+        const el = document.createElement('div');
+        el.className = 'pizarra-el';
+        el.dataset.id = 'el_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+        el.dataset.texto = texto;
+        el.dataset.tipo = 'nota';
+        el.dataset.color = 'amarillo';
+        el.dataset.conectaCon = '';
+        el.style.left = Math.max(2, Math.min(93, ((clientX - rect.left) / rect.width) * 100)) + '%';
+        el.style.top = Math.max(3, Math.min(90, ((clientY - rect.top) / rect.height) * 100)) + '%';
+        el.textContent = '🗒️ ' + texto;
+        el.addEventListener('mousedown', (e) => iniciarDragPizarra(e, el));
+        document.getElementById('pizarra-capas').appendChild(el);
+        guardarPizarra();
+    };
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') guardar(); if (e.key === 'Escape') input.remove(); });
+    input.addEventListener('blur', guardar);
+}
+
+async function generarDiagrama() {
+    const input = document.getElementById('pizarra-input');
+    const instruccion = input.value.trim();
+    input.value = '';
+    if (!instruccion) { showLuminaToast('Escribe qué diagrama quieres que Lumi genere'); return; }
+    try {
+        const resp = await fetch('/api/pizarra/generar', {
+            method: 'POST',
+            headers: { ...getHeaders() },
+            body: JSON.stringify({ instruccion })
+        });
+        if (!resp.ok) throw new Error('Error generando');
+        const data = await resp.json();
+        renderPizarra(data.tablero);
+        await guardarPizarra();
+        showLuminaToast(`✦ Diagrama generado por Lumi (${data.provider})`);
+    } catch (err) {
+        console.error('[Pizarra]', err);
+        showLuminaToast('No se pudo generar el diagrama');
+    }
+}
+
+async function mostrarPanelNodos() {
+    const panel = document.getElementById('pizarra-nodos-panel');
+    panel.classList.toggle('hidden');
+    if (!panel.classList.contains('hidden') && !panel.dataset.cargado) {
+        panel.dataset.cargado = '1';
+        try {
+            const resp = await fetch('/api/ideas', { headers: { ...getHeaders() } });
+            const ideas = await resp.json();
+            panel.replaceChildren();
+            const visibles = ideas.filter(i => !i.hidden && i.tipo !== 'agujero_negro').slice(0, 40);
+            if (!visibles.length) { panel.textContent = 'No hay nodos que traer todavía.'; return; }
+            visibles.forEach((idea, i) => {
+                const fila = document.createElement('div');
+                fila.className = 'pizarra-nodo-fila';
+                const label = document.createElement('span');
+                label.textContent = (idea.resumen || idea.textoOriginal || 'Nodo').slice(0, 70);
+                const btn = document.createElement('button');
+                btn.className = 'quick-action';
+                btn.textContent = '＋ Traer';
+                btn.addEventListener('click', () => {
+                    const capas = document.getElementById('pizarra-capas');
+                    const el = document.createElement('div');
+                    el.className = 'pizarra-el';
+                    el.dataset.id = 'el_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+                    el.dataset.texto = label.textContent;
+                    el.dataset.tipo = idea.category || idea.tipo || 'nota';
+                    el.dataset.color = idea.color || 'amarillo';
+                    el.dataset.conectaCon = '';
+                    el.style.left = (8 + ((i % 6) * 14)) + '%';
+                    el.style.top = (8 + (Math.floor(i / 6) * 18)) + '%';
+                    el.textContent = label.textContent;
+                    el.addEventListener('mousedown', (e) => iniciarDragPizarra(e, el));
+                    capas.appendChild(el);
+                    guardarPizarra();
+                });
+                fila.append(label, btn);
+                panel.appendChild(fila);
+            });
+        } catch (err) {
+            panel.textContent = 'Error cargando tus nodos.';
+        }
+    }
+}
+
+async function abrirPizarra() {
+    crearPizarraDOM();
+    document.getElementById('pizarra-modal').classList.remove('hidden');
+    pizarraAbierta = true;
+    try {
+        const resp = await fetch('/api/pizarra', { headers: { ...getHeaders() } });
+        const data = await resp.json();
+        renderPizarra(data.tablero);
+    } catch (err) {
+        console.warn('[Pizarra] Error cargando:', err.message);
+    }
+}
+
+function cerrarPizarra() {
+    document.getElementById('pizarra-modal')?.classList.add('hidden');
+    pizarraAbierta = false;
 }
 
 // ====== VOZ LOCAL: dictar a Lumi con el micrófono del Mac ======
