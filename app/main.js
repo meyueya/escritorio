@@ -1222,8 +1222,12 @@ let authToken = null;
 let currentUsername = null;
 
 // Auth Helper
+// Identidad de esta pestaña: permite ignorar nuestros propios eventos SSE
+// (si no, cada cambio local dispararía un re-render completo innecesario).
+const tabId = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+
 const getHeaders = () => {
-    const headers = { 'Content-Type': 'application/json' };
+    const headers = { 'Content-Type': 'application/json', 'X-Tab-Id': tabId };
     if (authToken) headers.Authorization = `Bearer ${authToken}`;
     return headers;
 };
@@ -3106,7 +3110,7 @@ function createNewIdeaNode(ideaData) {
 }
 
 // Cargar recuerdos desde Backend (Requiere Token)
-async function loadConstellation() {
+async function loadConstellation(instant = false) {
     try {
         const response = await fetch('/api/ideas', {
             headers: getHeaders()
@@ -3129,16 +3133,21 @@ async function loadConstellation() {
         statusText.innerText = `Mapa de ${currentUsername} restaurado.`;
         conectarTiempoReal(); // pizarra viva: recibir cambios de otros dispositivos
 
-        // Renderizar secuencialmente (filtrar ocultos por agujeros negros)
+        // Renderizar (filtrar ocultos por agujeros negros)
         const visibleIdeas = ideas.filter(i => !i.hidden);
-        visibleIdeas.forEach((idea, index) => {
-            setTimeout(() => createNewIdeaNode(idea), index * 300);
-        });
-
-        setTimeout(() => {
-            statusText.innerText = "Lumina en reposo";
-            renderPlanets(); // Renderizar planetas después de cargar nodos
-        }, 3000);
+        if (instant) {
+            // Sincronización en vivo: render inmediato, sin animación escalonada
+            visibleIdeas.forEach(idea => createNewIdeaNode(idea));
+            if (typeof renderPlanets === 'function') renderPlanets();
+        } else {
+            visibleIdeas.forEach((idea, index) => {
+                setTimeout(() => createNewIdeaNode(idea), index * 300);
+            });
+            setTimeout(() => {
+                statusText.innerText = "Lumina en reposo";
+                renderPlanets(); // Renderizar planetas después de cargar nodos
+            }, 3000);
+        }
     } catch (error) {
         console.error("Error cargando DB:", error);
     }
@@ -3161,10 +3170,12 @@ function conectarTiempoReal() {
                 if (data.tipo === 'conectado') {
                     showLuminaToast('🛰️ Sincronización en vivo activa');
                 } else if (data.tipo === 'datos-actualizados') {
+                    // Cambio propio (misma pestaña): la UI ya está al día → ignorar.
+                    if (data.tabId && data.tabId === tabId) return;
                     if (data.usuario && data.usuario !== currentUsername) {
                         showLuminaToast(`🔄 ${data.usuario} actualizó el mapa — sincronizando…`);
                     }
-                    loadConstellation();
+                    loadConstellation(true); // instantáneo: sin la animación escalonada
                     if (todayModal && !todayModal.classList.contains('hidden')) loadToday();
                 }
                 // 'presencia': ignorado en v1 (podría mostrarse como indicador)
@@ -3195,10 +3206,13 @@ function crearNotaEn(x, y) {
         input.remove();
         if (!texto) return;
         try {
+            // El mapa usa coordenadas en PORCENTAJE (0-100): convertir px → %
+            const xPct = Math.max(2, Math.min((x / window.innerWidth) * 100, 90));
+            const yPct = Math.max(5, Math.min((y / window.innerHeight) * 100, 85));
             const resp = await fetch('/api/nodo-manual', {
                 method: 'POST',
                 headers: { ...getHeaders() },
-                body: JSON.stringify({ x, y, texto })
+                body: JSON.stringify({ x: xPct, y: yPct, texto })
             });
             if (resp.status === 401) return handleSessionExpired();
             if (!resp.ok) throw new Error('No se pudo crear la nota');

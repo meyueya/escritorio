@@ -148,7 +148,7 @@ function emitirCambio(tipo, meta = {}) {
     if (!canal) return; // escrituras sin contexto de petición (p.ej. siembra demo)
     const clientes = clientesPorCanal.get(canal);
     if (!clientes || clientes.size === 0) return;
-    const payload = JSON.stringify({ tipo, usuario: req.username || null, ts: Date.now(), ...meta });
+    const payload = JSON.stringify({ tipo, usuario: req.username || null, tabId: req.headers?.['x-tab-id'] || null, ts: Date.now(), ...meta });
     for (const res of clientes) {
         try { res.write(`data: ${payload}\n\n`); } catch { clientes.delete(res); }
     }
