@@ -473,14 +473,17 @@ const LuminaVoice = (() => {
             source.connect(chainInput); // source → analyser → panner → gain → dest
             currentAudioSource = source;
 
-            source.onended = () => {
-                currentAudioSource = null;
-                endSpeakingState();
-            };
-
-            startSpeakingState(text);
-            source.start(0);
-            startPulsation(); // Begin volume-driven light effects
+            // Resolver SOLO cuando el audio termina: narración secuencial real.
+            await new Promise((resolver) => {
+                source.onended = () => {
+                    currentAudioSource = null;
+                    endSpeakingState();
+                    resolver();
+                };
+                startSpeakingState(text);
+                source.start(0);
+                startPulsation(); // Begin volume-driven light effects
+            });
         } catch (err) {
             console.warn('[LuminaVoice] Error decodificando audio, usando fallback:', err);
             speakFallback(text);
@@ -1335,6 +1338,8 @@ function showApp() {
     conectarMicLumi();    // voz local: botón de dictado junto al chat de Lumi
     conectarBotonPizarra(); // botón visible ✦ Pizarra (diagramas generados por Lumi)
     conectarBotonDecisiones(); // botón 🧠 Decisiones (memoria que aprende)
+    conectarBotonRitual();   // botón ✦ Ritual (ceremonia de apertura con voz)
+    conectarBotonAmbiente(); // botón ♪ (ambiente sonoro etéreo)
     loadConstellation();
 
     // El micrófono solo se activa tras una acción explícita del usuario.
@@ -3880,6 +3885,174 @@ async function registrarDecisionManual() {
     } catch (err) {
         showLuminaToast('No se pudo registrar la decisión');
     }
+}
+
+// ====== RITUAL DE LUMI: ceremonia de apertura + ambiente sonoro ======
+let ritualActivo = false;
+let saltarRitual = false;
+let ambienteActivo = false;
+let ambientePrevio = null;
+let nodosAmbiente = null;
+
+function conectarBotonRitual() {
+    const contenedor = btnToday?.parentNode;
+    if (!contenedor || document.getElementById('btn-ritual')) return;
+    const btn = document.createElement('button');
+    btn.id = 'btn-ritual';
+    btn.type = 'button';
+    btn.className = btnToday?.className || 'nav-btn';
+    btn.textContent = '✦ Ritual';
+    btn.title = 'Ceremonia de apertura: Lumi te da la bienvenida con su voz';
+    btn.addEventListener('click', abrirRitual);
+    contenedor.insertBefore(btn, btnToday);
+}
+
+function conectarBotonAmbiente() {
+    const contenedor = btnToday?.parentNode;
+    if (!contenedor || document.getElementById('btn-ambiente')) return;
+    const btn = document.createElement('button');
+    btn.id = 'btn-ambiente';
+    btn.type = 'button';
+    btn.className = btnToday?.className || 'nav-btn';
+    btn.textContent = '♪';
+    btn.title = 'Ambiente sonoro etéreo (experiencia inmersiva)';
+    btn.addEventListener('click', () => {
+        if (ambienteActivo) detenerAmbiente(); else iniciarAmbiente();
+        btn.classList.toggle('is-active', ambienteActivo);
+    });
+    contenedor.insertBefore(btn, btnToday);
+}
+
+function iniciarAmbiente() {
+    try {
+        if (typeof AudioEngine === 'undefined' || !AudioEngine) return;
+        AudioEngine.init();
+        const ctx = AudioEngine.ctx;
+        if (!ctx) return;
+        if (nodosAmbiente) detenerAmbiente();
+        const master = ctx.createGain();
+        master.gain.value = 0;
+        master.gain.linearRampToValueAtTime(0.02, ctx.currentTime + 3);
+        const filtro = ctx.createBiquadFilter();
+        filtro.type = 'lowpass';
+        filtro.frequency.value = 900;
+        const lfo = ctx.createOscillator();
+        lfo.frequency.value = 0.05;
+        const lfoGain = ctx.createGain();
+        lfoGain.gain.value = 300;
+        lfo.connect(lfoGain).connect(filtro.frequency);
+        const freqs = [110, 164.81, 220, 329.63];
+        const oscs = freqs.map((f, i) => {
+            const o = ctx.createOscillator();
+            o.type = i === 0 ? 'sine' : 'triangle';
+            o.frequency.value = f;
+            o.detune.value = (i - 1) * 3;
+            const g = ctx.createGain();
+            g.gain.value = i === 0 ? 0.5 : 0.18 / (i + 1);
+            o.connect(g).connect(filtro);
+            o.start();
+            return o;
+        });
+        filtro.connect(master).connect(ctx.destination);
+        lfo.start();
+        nodosAmbiente = { master, oscs, lfo };
+        ambienteActivo = true;
+    } catch (e) {
+        console.warn('[Ambiente]', e.message);
+    }
+}
+
+function detenerAmbiente() {
+    if (!nodosAmbiente) { ambienteActivo = false; return; }
+    try {
+        const { master, oscs, lfo } = nodosAmbiente;
+        master.gain.linearRampToValueAtTime(0, AudioEngine.ctx.currentTime + 1.5);
+        setTimeout(() => {
+            oscs.forEach(o => { try { o.stop(); } catch { /* ignore */ } });
+            try { lfo.stop(); } catch { /* ignore */ }
+        }, 1600);
+    } catch { /* ignore */ }
+    nodosAmbiente = null;
+    ambienteActivo = false;
+}
+
+function crearRitualDOM() {
+    if (document.getElementById('ritual-overlay')) return;
+    const overlay = document.createElement('div');
+    overlay.id = 'ritual-overlay';
+    overlay.className = 'ritual-overlay hidden';
+    const estrellas = document.createElement('div');
+    estrellas.className = 'ritual-estrellas';
+    for (let i = 0; i < 70; i++) {
+        const s = document.createElement('i');
+        s.style.left = (Math.random() * 100) + '%';
+        s.style.top = (Math.random() * 100) + '%';
+        s.style.animationDelay = (Math.random() * 6) + 's';
+        s.style.animationDuration = (3 + Math.random() * 5) + 's';
+        s.style.width = s.style.height = (Math.random() > 0.85 ? 3 : 2) + 'px';
+        estrellas.appendChild(s);
+    }
+    const texto = document.createElement('div');
+    texto.id = 'ritual-texto';
+    texto.className = 'ritual-texto';
+    const saltar = document.createElement('button');
+    saltar.className = 'ritual-saltar';
+    saltar.textContent = 'Saltar ✕';
+    saltar.addEventListener('click', () => { saltarRitual = true; cerrarRitual(); });
+    overlay.append(estrellas, texto, saltar);
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) { saltarRitual = true; cerrarRitual(); } });
+}
+
+function cerrarRitual() {
+    if (typeof LuminaVoice !== 'undefined' && LuminaVoice.stop) LuminaVoice.stop();
+    const overlay = document.getElementById('ritual-overlay');
+    overlay?.classList.add('hidden');
+    ritualActivo = false;
+    if (ambientePrevio === false) detenerAmbiente();
+}
+
+async function abrirRitual() {
+    crearRitualDOM();
+    if (!currentUsername || ritualActivo) return;
+    ritualActivo = true;
+    saltarRitual = false;
+    ambientePrevio = ambienteActivo;
+    const overlay = document.getElementById('ritual-overlay');
+    const texto = document.getElementById('ritual-texto');
+    overlay.classList.remove('hidden');
+
+    if (!ambienteActivo) iniciarAmbiente(); // ambiente etéreo durante la ceremonia
+
+    let frases = [];
+    try {
+        const c = new AbortController();
+        const timer = setTimeout(() => c.abort(), 10000);
+        const resp = await fetch('/api/ritual', { method: 'POST', headers: { ...getHeaders() }, signal: c.signal });
+        clearTimeout(timer);
+        const data = await resp.json();
+        frases = data.frases || [];
+    } catch { frases = []; }
+    if (!frases.length) frases = ['Bienvenido a tu constelación.'];
+
+    for (const frase of frases) {
+        if (saltarRitual) break;
+        texto.classList.remove('ritual-fade');
+        void texto.offsetWidth; // reiniciar la animación
+        texto.textContent = frase;
+        texto.classList.add('ritual-fade');
+        if (typeof LuminaVoice !== 'undefined' && LuminaVoice.speak) {
+            // Tope por frase: la narración no debe estancarse
+            await Promise.race([
+                LuminaVoice.speak(frase),
+                new Promise(r => setTimeout(r, 15000))
+            ]);
+        } else {
+            await new Promise(r => setTimeout(r, 2200));
+        }
+    }
+    if (!saltarRitual) await new Promise(r => setTimeout(r, 1800));
+    cerrarRitual();
 }
 
 // ====== VOZ LOCAL: dictar a Lumi con el micrófono del Mac ======
