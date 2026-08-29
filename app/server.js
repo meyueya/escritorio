@@ -1031,6 +1031,45 @@ app.post('/api/texto', requireAuth, async (req, res) => {
 });
 
 /**
+ * POST /api/nodo-manual — Pizarra interactiva: crear nota adhesiva ("cuadro")
+ * con doble clic en el lienzo, sin pasar por la IA. Posición en píxeles del
+ * viewport (mismo convenio que el arrastre de nodos). Emite evento SSE.
+ */
+app.post('/api/nodo-manual', requireAuth, (req, res) => {
+    try {
+        const { x, y, texto, color } = req.body;
+        const textoLimpio = String(texto || '').trim().slice(0, 400);
+        if (!textoLimpio) return res.status(400).json({ error: 'La nota no puede estar vacía.' });
+        if (!Number.isFinite(Number(x)) || !Number.isFinite(Number(y))) {
+            return res.status(400).json({ error: 'Posición inválida.' });
+        }
+        const colores = ['default', 'amarillo', 'rosa', 'azul', 'verde', 'indigo', 'violet', 'rose', 'emerald', 'turquoise'];
+        const colorSeguro = colores.includes(color) ? color : 'amarillo';
+
+        const db = leerJSON(DATA_FILE);
+        const nota = {
+            id: Date.now().toString() + '_' + Math.random().toString(36).slice(2, 6),
+            userId: req.userId,
+            orgId: req.orgId,
+            tipo: 'nota',
+            textoOriginal: textoLimpio,
+            resumen: textoLimpio,
+            color: colorSeguro,
+            x: Math.max(0, Number(x)),
+            y: Math.max(0, Number(y)),
+            fecha: new Date().toISOString()
+        };
+        db.push(nota);
+        guardarJSON(DATA_FILE, db); // emite 'datos-actualizados' al canal SSE de la org
+        registrarActividad(req, 'accion_realizada', `Nota creada: ${textoLimpio.slice(0, 60)}`, { origen: 'pizarra', nodeId: nota.id });
+        res.status(201).json({ success: true, nodo: nota });
+    } catch (error) {
+        console.error('[Pizarra] Error creando nota:', error);
+        res.status(500).json({ error: 'Error creando la nota.' });
+    }
+});
+
+/**
  * RUTA 3: Obtener todas las ideas guardadas del usuario (Protegida)
  */
 app.get('/api/ideas', requireAuth, (req, res) => {
@@ -1069,7 +1108,7 @@ app.get('/api/hoy', requireAuth, (req, res) => {
         const now = new Date();
         const today = now.toISOString().slice(0, 10);
         const nodes = nodosVisiblesPara(req, leerJSON(DATA_FILE))
-            .filter(n => !n.hidden && n.tipo !== 'agujero_negro');
+            .filter(n => !n.hidden && n.tipo !== 'agujero_negro' && n.tipo !== 'nota');
         const active = nodes.filter(n => !['completado', 'archivado'].includes(n.estado));
         const overdue = active.filter(n => (n.fechaObjetivo || n.dueDate || '').slice(0, 10) < today && (n.fechaObjetivo || n.dueDate));
         const dueToday = active.filter(n => (n.fechaObjetivo || n.dueDate || '').slice(0, 10) === today);
@@ -1095,7 +1134,7 @@ function calcularPanorama(req, db) {
     const today = now.toISOString().slice(0, 10);
     const en7 = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
     const nodes = nodosVisiblesPara(req, db)
-        .filter(n => !n.hidden && n.tipo !== 'agujero_negro');
+        .filter(n => !n.hidden && n.tipo !== 'agujero_negro' && n.tipo !== 'nota');
     const active = nodes.filter(n => !['completado', 'archivado'].includes(n.estado));
     const fechaDe = n => (n.fechaObjetivo || n.dueDate || '').slice(0, 10);
     const overdue = active.filter(n => fechaDe(n) && fechaDe(n) < today);

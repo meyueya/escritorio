@@ -1328,6 +1328,7 @@ function showApp() {
     window.lastAIResponse = '';
 
     conectarTiempoReal(); // pizarra viva: abrir canal SSE en TODO inicio de sesión (login/demo/restauración)
+    conectarMicLumi();    // voz local: botón de dictado junto al chat de Lumi
     loadConstellation();
 
     // El micrófono solo se activa tras una acción explícita del usuario.
@@ -3176,6 +3177,88 @@ function conectarTiempoReal() {
     }
 }
 
+// ====== PIZARRA: notas adhesivas con doble clic en el lienzo ======
+function crearNotaEn(x, y) {
+    if (!currentUsername) return;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'sticky-input';
+    input.placeholder = 'Escribe tu nota y pulsa Enter…';
+    input.style.left = `${x}px`;
+    input.style.top = `${y}px`;
+    document.body.appendChild(input);
+    input.focus();
+
+    const guardar = async () => {
+        const texto = input.value.trim();
+        input.remove();
+        if (!texto) return;
+        try {
+            const resp = await fetch('/api/nodo-manual', {
+                method: 'POST',
+                headers: { ...getHeaders() },
+                body: JSON.stringify({ x, y, texto })
+            });
+            if (resp.status === 401) return handleSessionExpired();
+            if (!resp.ok) throw new Error('No se pudo crear la nota');
+            const data = await resp.json();
+            createNewIdeaNode(data.nodo); // aparece al instante; el SSE sincroniza al resto
+            showLuminaToast('🗒️ Nota creada en la pizarra');
+        } catch (err) {
+            console.error('[Pizarra]', err);
+            showLuminaToast('No se pudo crear la nota');
+        }
+    };
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') guardar();
+        if (e.key === 'Escape') input.remove();
+    });
+    input.addEventListener('blur', guardar);
+}
+
+if (appView) {
+    appView.addEventListener('dblclick', (e) => {
+        // Solo sobre el fondo: ignorar dobles clics en nodos, modales o controles
+        if (e.target.closest('.idea-node, .lumina-toast, .modal, input, button')) return;
+        crearNotaEn(e.clientX, e.clientY);
+    });
+}
+
+// ====== VOZ LOCAL: dictar a Lumi con el micrófono del Mac ======
+function conectarMicLumi() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const btnMic = document.createElement('button');
+    btnMic.type = 'button';
+    btnMic.className = 'quick-action';
+    btnMic.textContent = '🎤';
+    btnMic.title = SpeechRecognition
+        ? 'Dicta a Lumi con tu voz (en Safari usa el dictado local del Mac)'
+        : 'Tu navegador no soporta dictado por voz';
+    if (chatInput?.parentNode && !document.getElementById('btn-mic-lumi')) {
+        btnMic.id = 'btn-mic-lumi';
+        chatInput.parentNode.insertBefore(btnMic, btnSendChat);
+    }
+    if (!SpeechRecognition) return;
+
+    let rec = null;
+    btnMic.addEventListener('click', () => {
+        if (rec) { try { rec.stop(); } catch { /* ignore */ } rec = null; btnMic.textContent = '🎤'; return; }
+        rec = new SpeechRecognition();
+        rec.lang = 'es-ES';
+        rec.interimResults = false;
+        rec.maxAlternatives = 1;
+        rec.onresult = (e) => {
+            const texto = e.results[0][0].transcript;
+            chatInput.value = texto;
+            sendChatMessage();
+        };
+        rec.onend = () => { rec = null; btnMic.textContent = '🎤'; };
+        rec.onerror = () => { rec = null; btnMic.textContent = '🎤'; };
+        btnMic.textContent = '🔴';
+        try { rec.start(); } catch { btnMic.textContent = '🎤'; }
+    });
+}
+
 // ====== LÓGICA DEL MODAL INTERACTIVO ======
 const nodeModal = document.getElementById('node-modal');
 const closeModalBtn = document.getElementById('close-modal');
@@ -4281,6 +4364,9 @@ async function sendChatMessage() {
         addChatMessage('assistant', data.respuesta);
         chatHistorial.push({ role: 'assistant', content: data.respuesta });
         showLuminaToast('✓ Mensaje guardado en Actividad');
+
+        // Lumi responde con la voz local del Mac (VOICE_ENGINE=macos → say)
+        if (typeof LuminaVoice !== 'undefined' && LuminaVoice.speak) LuminaVoice.speak(data.respuesta);
 
         // Guardar respuesta para que la Mariposa la lea si el usuario le da clic
         window.lastAIResponse = data.respuesta;
