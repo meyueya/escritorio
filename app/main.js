@@ -3244,6 +3244,8 @@ if (appView) {
 
 // ====== PIZARRA DE LUMI: tablero de diagramas generados por la IA ======
 let pizarraAbierta = false;
+let tableroActual = { titulo: 'Mi pizarra', elementos: [] };
+let seleccionConexion = null; // id del elemento elegido con Shift+clic
 
 function conectarBotonPizarra() {
     const contenedor = btnToday?.parentNode;
@@ -3272,6 +3274,24 @@ function crearPizarraDOM() {
     titulo.id = 'pizarra-titulo';
     titulo.className = 'pizarra-titulo';
     titulo.textContent = '✦ Pizarra de Lumi';
+    titulo.title = 'Doble clic para renombrar';
+    titulo.addEventListener('dblclick', () => {
+        titulo.contentEditable = 'true';
+        titulo.focus();
+        try {
+            const r = document.createRange();
+            r.selectNodeContents(titulo);
+            const s = window.getSelection();
+            s.removeAllRanges(); s.addRange(r);
+        } catch { /* ignore */ }
+        const terminar = () => {
+            titulo.contentEditable = 'false';
+            guardarPizarra();
+            showLuminaToast('✏️ Título actualizado');
+        };
+        titulo.addEventListener('blur', terminar, { once: true });
+        titulo.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); titulo.blur(); } }, { once: true });
+    });
     const acciones = document.createElement('div');
     acciones.className = 'pizarra-acciones';
     const input = document.createElement('input');
@@ -3294,7 +3314,20 @@ function crearPizarraDOM() {
     btnCerrar.className = 'quick-action';
     btnCerrar.textContent = '✕';
     btnCerrar.addEventListener('click', cerrarPizarra);
-    acciones.append(input, btnGen, btnNodos, btnCerrar);
+    const btnVaciar = document.createElement('button');
+    btnVaciar.id = 'pizarra-vaciar';
+    btnVaciar.className = 'quick-action';
+    btnVaciar.textContent = '🗑️ Vaciar';
+    btnVaciar.title = 'Vaciar la pizarra por completo';
+    btnVaciar.addEventListener('click', () => {
+        showLuminaToast('¿Vaciar la pizarra por completo?', 'Sí, vaciar', () => {
+            tableroActual = { titulo: 'Mi pizarra', elementos: [] };
+            renderPizarra(tableroActual);
+            guardarPizarra();
+            showLuminaToast('Pizarra vaciada');
+        });
+    });
+    acciones.append(input, btnGen, btnNodos, btnVaciar, btnCerrar);
     header.append(titulo, acciones);
 
     const panelNodos = document.createElement('div');
@@ -3314,7 +3347,7 @@ function crearPizarraDOM() {
 
     const footer = document.createElement('footer');
     footer.className = 'pizarra-footer';
-    footer.textContent = 'Doble clic en el lienzo = nota nueva · Arrastra para mover · Se sincroniza en vivo entre ventanas';
+    footer.textContent = 'Doble clic en elemento = editar · Arrastra = mover · Shift+clic en dos elementos = conectarlos · Doble clic en el fondo = nota · ✕ = eliminar';
 
     shell.append(header, panelNodos, lienzo, footer);
     overlay.appendChild(shell);
@@ -3338,7 +3371,8 @@ function leerEstadoPizarra() {
         color: el.dataset.color || 'amarillo',
         x: parseFloat(el.style.left),
         y: parseFloat(el.style.top),
-        conectaCon: el.dataset.conectaCon ? el.dataset.conectaCon.split(',') : []
+        conectaCon: el.dataset.conectaCon ? el.dataset.conectaCon.split(',') : [],
+        conflictos: el.dataset.conflictos ? el.dataset.conflictos.split(',') : []
     }));
     void rect;
     return { titulo: document.getElementById('pizarra-titulo')?.textContent?.replace('✦ ', '') || 'Mi pizarra', elementos };
@@ -3356,15 +3390,15 @@ async function guardarPizarra() {
 function renderPizarra(tablero) {
     const capas = document.getElementById('pizarra-capas');
     const svg = document.getElementById('pizarra-svg');
-    const lienzo = document.getElementById('pizarra-lienzo');
-    if (!capas || !svg || !lienzo) return;
+    if (!capas || !svg) return;
     capas.replaceChildren();
     svg.replaceChildren();
-    if (!tablero || !Array.isArray(tablero.elementos)) return;
-    document.getElementById('pizarra-titulo').textContent = '✦ ' + (tablero.titulo || 'Pizarra de Lumi');
+    tableroActual = (tablero && Array.isArray(tablero.elementos)) ? tablero : { titulo: 'Mi pizarra', elementos: [] };
+    const tituloEl = document.getElementById('pizarra-titulo');
+    if (tituloEl) tituloEl.textContent = '✦ ' + (tableroActual.titulo || 'Mi pizarra');
+    seleccionConexion = null;
 
-    const mapa = {};
-    tablero.elementos.forEach(el => {
+    tableroActual.elementos.forEach(el => {
         const div = document.createElement('div');
         div.className = 'pizarra-el';
         div.dataset.id = el.id;
@@ -3375,24 +3409,62 @@ function renderPizarra(tablero) {
         div.dataset.conflictos = (el.conflictos || []).join(',');
         div.style.left = (el.x || 20) + '%';
         div.style.top = (el.y || 20) + '%';
-        const icono = el.tipo === 'nota' ? '🗒️ ' : '';
-        div.textContent = `${icono}${el.texto}`;
-        div.addEventListener('mousedown', (e) => iniciarDragPizarra(e, div));
+        const texto = document.createElement('span');
+        texto.className = 'pizarra-el-texto';
+        texto.textContent = (el.tipo === 'nota' ? '🗒️ ' : '') + el.texto;
+        const del = document.createElement('button');
+        del.className = 'pizarra-el-del';
+        del.textContent = '✕';
+        del.title = 'Eliminar elemento';
+        del.addEventListener('click', (e) => { e.stopPropagation(); eliminarElementoPizarra(el.id); });
+        div.append(texto, del);
+        div.addEventListener('mousedown', (e) => { if (e.target === del) return; iniciarDragPizarra(e, div); });
+        div.addEventListener('click', (e) => { if (e.target !== del) manejarSeleccionConexion(e, el.id, div); });
+        div.addEventListener('dblclick', (e) => { e.stopPropagation(); editarElementoPizarra(el.id, div); });
         capas.appendChild(div);
-        mapa[el.id] = div;
     });
-    tablero.elementos.forEach(el => {
-        (el.conectaCon || []).forEach(otroId => {
-            const a = mapa[el.id], b = mapa[otroId];
-            if (!a || !b) return;
-            const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect(), rl = lienzo.getBoundingClientRect();
-            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    dibujarLineasPizarra();
+}
+
+function dibujarLineasPizarra() {
+    const svg = document.getElementById('pizarra-svg');
+    const lienzo = document.getElementById('pizarra-lienzo');
+    const capas = document.getElementById('pizarra-capas');
+    if (!svg || !lienzo || !capas) return;
+    svg.replaceChildren();
+    const ns = 'http://www.w3.org/2000/svg';
+    const defs = document.createElementNS(ns, 'defs');
+    const marker = document.createElementNS(ns, 'marker');
+    marker.setAttribute('id', 'pizarra-flecha');
+    marker.setAttribute('viewBox', '0 0 10 10');
+    marker.setAttribute('refX', '9');
+    marker.setAttribute('refY', '5');
+    marker.setAttribute('markerWidth', '7');
+    marker.setAttribute('markerHeight', '7');
+    marker.setAttribute('orient', 'auto-start-reverse');
+    const path = document.createElementNS(ns, 'path');
+    path.setAttribute('d', 'M 0 0 L 10 5 L 0 10 z');
+    path.setAttribute('fill', 'context-stroke');
+    marker.appendChild(path);
+    defs.appendChild(marker);
+    svg.appendChild(defs);
+
+    const mapa = {};
+    capas.querySelectorAll('.pizarra-el').forEach(d => { mapa[d.dataset.id] = d; });
+    const rl = lienzo.getBoundingClientRect();
+    capas.querySelectorAll('.pizarra-el').forEach(d => {
+        (d.dataset.conectaCon ? d.dataset.conectaCon.split(',') : []).forEach(otroId => {
+            const b = mapa[otroId];
+            if (!b) return;
+            const ra = d.getBoundingClientRect(), rb = b.getBoundingClientRect();
+            const line = document.createElementNS(ns, 'line');
             line.setAttribute('x1', ra.left - rl.left + ra.width / 2);
             line.setAttribute('y1', ra.top - rl.top + ra.height / 2);
             line.setAttribute('x2', rb.left - rl.left + rb.width / 2);
             line.setAttribute('y2', rb.top - rl.top + rb.height / 2);
+            line.setAttribute('marker-end', 'url(#pizarra-flecha)');
             line.classList.add('pizarra-linea');
-            if ((el.conflictos || []).includes(otroId)) line.classList.add('conflicto');
+            if ((d.dataset.conflictos || '').split(',').includes(otroId)) line.classList.add('conflicto');
             svg.appendChild(line);
         });
     });
@@ -3407,7 +3479,7 @@ function iniciarDragPizarra(e, el) {
         const y = ((ev.clientY - rect.top) / rect.height) * 100;
         el.style.left = Math.max(2, Math.min(93, x)) + '%';
         el.style.top = Math.max(3, Math.min(90, y)) + '%';
-        redibujarLineasPizarra();
+        dibujarLineasPizarra(); // solo líneas: el elemento arrastrado no se re-renderiza
     };
     const soltar = () => {
         document.removeEventListener('mousemove', mover);
@@ -3418,9 +3490,64 @@ function iniciarDragPizarra(e, el) {
     document.addEventListener('mouseup', soltar);
 }
 
-function redibujarLineasPizarra() {
-    const estado = leerEstadoPizarra();
-    renderPizarra(estado);
+function editarElementoPizarra(id, div) {
+    const rect = div.getBoundingClientRect();
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'sticky-input';
+    input.style.left = `${rect.left}px`;
+    input.style.top = `${rect.top}px`;
+    input.style.width = `${Math.max(rect.width, 180)}px`;
+    input.value = div.dataset.texto || '';
+    document.body.appendChild(input);
+    input.focus();
+    input.select();
+    const guardar = () => {
+        const texto = input.value.trim();
+        input.remove();
+        const el = tableroActual.elementos.find(e => e.id === id);
+        if (el && texto) {
+            el.texto = texto;
+            renderPizarra(tableroActual);
+            guardarPizarra();
+            showLuminaToast('✏️ Elemento actualizado');
+        }
+    };
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') guardar(); if (e.key === 'Escape') input.remove(); });
+    input.addEventListener('blur', guardar);
+}
+
+function eliminarElementoPizarra(id) {
+    tableroActual.elementos = tableroActual.elementos.filter(e => e.id !== id);
+    tableroActual.elementos.forEach(e => {
+        e.conectaCon = (e.conectaCon || []).filter(c => c !== id);
+        e.conflictos = (e.conflictos || []).filter(c => c !== id);
+    });
+    renderPizarra(tableroActual);
+    guardarPizarra();
+    showLuminaToast('🗑️ Elemento eliminado');
+}
+
+function manejarSeleccionConexion(e, id, div) {
+    if (!e.shiftKey) return;
+    e.stopPropagation();
+    if (!seleccionConexion) {
+        seleccionConexion = id;
+        div.classList.add('selected');
+        showLuminaToast('Elemento seleccionado — ahora Shift+clic en otro para conectarlos');
+        return;
+    }
+    document.querySelectorAll('.pizarra-el.selected').forEach(d => d.classList.remove('selected'));
+    if (seleccionConexion === id) { seleccionConexion = null; return; }
+    const origen = tableroActual.elementos.find(x => x.id === seleccionConexion);
+    if (origen && !(origen.conectaCon || []).includes(id)) {
+        if (!origen.conectaCon) origen.conectaCon = [];
+        origen.conectaCon.push(id);
+        renderPizarra(tableroActual);
+        guardarPizarra();
+        showLuminaToast('✦ Elementos conectados');
+    }
+    seleccionConexion = null;
 }
 
 function crearNotaPizarra(clientX, clientY) {
@@ -3437,18 +3564,17 @@ function crearNotaPizarra(clientX, clientY) {
         const texto = input.value.trim();
         input.remove();
         if (!texto) return;
-        const el = document.createElement('div');
-        el.className = 'pizarra-el';
-        el.dataset.id = 'el_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
-        el.dataset.texto = texto;
-        el.dataset.tipo = 'nota';
-        el.dataset.color = 'amarillo';
-        el.dataset.conectaCon = '';
-        el.style.left = Math.max(2, Math.min(93, ((clientX - rect.left) / rect.width) * 100)) + '%';
-        el.style.top = Math.max(3, Math.min(90, ((clientY - rect.top) / rect.height) * 100)) + '%';
-        el.textContent = '🗒️ ' + texto;
-        el.addEventListener('mousedown', (e) => iniciarDragPizarra(e, el));
-        document.getElementById('pizarra-capas').appendChild(el);
+        tableroActual.elementos.push({
+            id: 'el_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+            texto,
+            tipo: 'nota',
+            color: 'amarillo',
+            x: Math.max(2, Math.min(93, ((clientX - rect.left) / rect.width) * 100)),
+            y: Math.max(3, Math.min(90, ((clientY - rect.top) / rect.height) * 100)),
+            conectaCon: [],
+            conflictos: []
+        });
+        renderPizarra(tableroActual);
         guardarPizarra();
     };
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') guardar(); if (e.key === 'Escape') input.remove(); });
@@ -3497,19 +3623,17 @@ async function mostrarPanelNodos() {
                 btn.className = 'quick-action';
                 btn.textContent = '＋ Traer';
                 btn.addEventListener('click', () => {
-                    const capas = document.getElementById('pizarra-capas');
-                    const el = document.createElement('div');
-                    el.className = 'pizarra-el';
-                    el.dataset.id = 'el_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
-                    el.dataset.texto = label.textContent;
-                    el.dataset.tipo = idea.category || idea.tipo || 'nota';
-                    el.dataset.color = idea.color || 'amarillo';
-                    el.dataset.conectaCon = '';
-                    el.style.left = (8 + ((i % 6) * 14)) + '%';
-                    el.style.top = (8 + (Math.floor(i / 6) * 18)) + '%';
-                    el.textContent = label.textContent;
-                    el.addEventListener('mousedown', (e) => iniciarDragPizarra(e, el));
-                    capas.appendChild(el);
+                    tableroActual.elementos.push({
+                        id: 'el_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+                        texto: label.textContent,
+                        tipo: idea.category || idea.tipo || 'nota',
+                        color: idea.color || 'amarillo',
+                        x: 8 + ((i % 6) * 14),
+                        y: 8 + (Math.floor(i / 6) * 18),
+                        conectaCon: [],
+                        conflictos: []
+                    });
+                    renderPizarra(tableroActual);
                     guardarPizarra();
                 });
                 fila.append(label, btn);

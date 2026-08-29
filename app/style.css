@@ -3546,8 +3546,27 @@ body {
     border-radius: 6px; border: 1px solid rgba(0,0,0,0.12);
     box-shadow: 0 10px 24px rgba(0,0,0,0.4);
     cursor: grab; user-select: none; word-break: break-word;
+    animation: pizarra-aparecer 0.22s ease;
+    transition: box-shadow 0.15s ease, outline-color 0.15s ease;
 }
+@keyframes pizarra-aparecer {
+    from { opacity: 0; transform: translate(-50%, -50%) scale(0.75); }
+    to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+.pizarra-el:hover { box-shadow: 0 16px 34px rgba(0,0,0,0.5); }
+.pizarra-el.selected { outline: 2px solid #11b4d4; outline-offset: 3px; }
 .pizarra-el:active { cursor: grabbing; }
+.pizarra-el-del {
+    position: absolute; top: -9px; right: -9px;
+    width: 20px; height: 20px; border-radius: 50%;
+    border: none; background: #ff5c6c; color: #fff;
+    font-size: 11px; line-height: 1; cursor: pointer;
+    display: none; align-items: center; justify-content: center;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.4);
+}
+.pizarra-el:hover .pizarra-el-del { display: flex; }
+.pizarra-titulo { cursor: text; }
+.pizarra-titulo[contenteditable="true"] { outline: 1px dashed rgba(17,180,212,0.7); outline-offset: 4px; border-radius: 4px; min-width: 120px; }
 .pizarra-el[data-tipo="tarea"] { background: linear-gradient(160deg, #d8ffe4 0%, #a9f5c4 100%); }
 .pizarra-el[data-tipo="proyecto"] { background: linear-gradient(160deg, #ffe0f0 0%, #ffc2dd 100%); }
 .pizarra-el[data-tipo="idea"] { background: linear-gradient(160deg, #e2e8ff 0%, #c3d0ff 100%); }
