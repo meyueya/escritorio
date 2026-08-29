@@ -1329,6 +1329,7 @@ function showApp() {
 
     conectarTiempoReal(); // pizarra viva: abrir canal SSE en TODO inicio de sesión (login/demo/restauración)
     conectarMicLumi();    // voz local: botón de dictado junto al chat de Lumi
+    conectarBotonNota();  // botón visible para crear notas sin doble clic
     loadConstellation();
 
     // El micrófono solo se activa tras una acción explícita del usuario.
@@ -3222,6 +3223,22 @@ if (appView) {
         if (e.target.closest('.idea-node, .lumina-toast, .modal, input, button')) return;
         crearNotaEn(e.clientX, e.clientY);
     });
+}
+
+// Botón visible "🗒️ Nota": alternativa al doble clic para crear notas.
+function conectarBotonNota() {
+    const contenedor = btnToday?.parentNode;
+    if (!contenedor || document.getElementById('btn-note')) return;
+    const btnNote = document.createElement('button');
+    btnNote.id = 'btn-note';
+    btnNote.type = 'button';
+    btnNote.className = btnToday?.className || 'nav-btn';
+    btnNote.textContent = '🗒️ Nota';
+    btnNote.title = 'Crear una nota adhesiva en el centro de la pizarra';
+    btnNote.addEventListener('click', () => {
+        crearNotaEn(window.innerWidth / 2, window.innerHeight / 2);
+    });
+    contenedor.insertBefore(btnNote, btnToday);
 }
 
 // ====== VOZ LOCAL: dictar a Lumi con el micrófono del Mac ======
