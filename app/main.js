@@ -3337,13 +3337,42 @@ function crearPizarraDOM() {
     const lienzo = document.createElement('div');
     lienzo.id = 'pizarra-lienzo';
     lienzo.className = 'pizarra-lienzo';
+    const zoomWrap = document.createElement('div');
+    zoomWrap.id = 'pizarra-zoom';
+    zoomWrap.className = 'pizarra-zoom';
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.id = 'pizarra-svg';
     svg.classList.add('pizarra-svg');
     const capas = document.createElement('div');
     capas.id = 'pizarra-capas';
     capas.className = 'pizarra-capas';
-    lienzo.append(svg, capas);
+    zoomWrap.append(svg, capas);
+    lienzo.appendChild(zoomWrap);
+
+    const controles = document.createElement('div');
+    controles.className = 'pizarra-zoom-controles';
+    const zOut = document.createElement('button');
+    zOut.textContent = '−';
+    zOut.title = 'Alejar (o Ctrl+rueda)';
+    zOut.addEventListener('click', () => cambiarZoomPizarra(-0.25));
+    const zNivel = document.createElement('span');
+    zNivel.id = 'pizarra-zoom-nivel';
+    zNivel.textContent = '100%';
+    const zIn = document.createElement('button');
+    zIn.textContent = '＋';
+    zIn.title = 'Acercar (o Ctrl+rueda)';
+    zIn.addEventListener('click', () => cambiarZoomPizarra(0.25));
+    const zFit = document.createElement('button');
+    zFit.textContent = '⤢';
+    zFit.title = 'Ajustar al 100%';
+    zFit.addEventListener('click', () => { pizarraZoom = 1; aplicarZoomPizarra(); });
+    controles.append(zOut, zNivel, zIn, zFit);
+    lienzo.appendChild(controles);
+    lienzo.addEventListener('wheel', (e) => {
+        if (!(e.ctrlKey || e.metaKey)) return;
+        e.preventDefault();
+        cambiarZoomPizarra(e.deltaY < 0 ? 0.1 : -0.1);
+    }, { passive: false });
 
     const footer = document.createElement('footer');
     footer.className = 'pizarra-footer';
@@ -3354,9 +3383,27 @@ function crearPizarraDOM() {
     document.body.appendChild(overlay);
     overlay.addEventListener('click', (e) => { if (e.target === overlay) cerrarPizarra(); });
     lienzo.addEventListener('dblclick', (e) => {
-        if (e.target !== lienzo && e.target !== svg) return;
+        if (e.target !== lienzo && e.target !== svg && !e.target.classList.contains('pizarra-vacio')) return;
         crearNotaPizarra(e.clientX, e.clientY);
     });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && pizarraAbierta) cerrarPizarra();
+    });
+}
+
+let pizarraZoom = 1;
+function aplicarZoomPizarra() {
+    const wrap = document.getElementById('pizarra-zoom');
+    if (!wrap) return;
+    wrap.style.transform = `scale(${pizarraZoom})`;
+    wrap.style.transformOrigin = '0 0';
+    const label = document.getElementById('pizarra-zoom-nivel');
+    if (label) label.textContent = Math.round(pizarraZoom * 100) + '%';
+    dibujarLineasPizarra();
+}
+function cambiarZoomPizarra(delta) {
+    pizarraZoom = Math.max(0.5, Math.min(1.5, Math.round((pizarraZoom + delta) * 100) / 100));
+    aplicarZoomPizarra();
 }
 
 function leerEstadoPizarra() {
@@ -3409,20 +3456,30 @@ function renderPizarra(tablero) {
         div.dataset.conflictos = (el.conflictos || []).join(',');
         div.style.left = (el.x || 20) + '%';
         div.style.top = (el.y || 20) + '%';
+        const badge = document.createElement('span');
+        badge.className = 'pizarra-el-tipo';
+        const etiquetas = { idea: '💡 Idea', tarea: '✅ Tarea', proyecto: '🚀 Proyecto', reunion: '📅 Reunión', nota: '🗒️ Nota' };
+        badge.textContent = etiquetas[el.tipo] || '🗒️ Nota';
         const texto = document.createElement('span');
         texto.className = 'pizarra-el-texto';
-        texto.textContent = (el.tipo === 'nota' ? '🗒️ ' : '') + el.texto;
+        texto.textContent = el.texto;
         const del = document.createElement('button');
         del.className = 'pizarra-el-del';
         del.textContent = '✕';
         del.title = 'Eliminar elemento';
         del.addEventListener('click', (e) => { e.stopPropagation(); eliminarElementoPizarra(el.id); });
-        div.append(texto, del);
+        div.append(badge, texto, del);
         div.addEventListener('mousedown', (e) => { if (e.target === del) return; iniciarDragPizarra(e, div); });
         div.addEventListener('click', (e) => { if (e.target !== del) manejarSeleccionConexion(e, el.id, div); });
         div.addEventListener('dblclick', (e) => { e.stopPropagation(); editarElementoPizarra(el.id, div); });
         capas.appendChild(div);
     });
+    if (!tableroActual.elementos.length) {
+        const vacio = document.createElement('div');
+        vacio.className = 'pizarra-vacio';
+        vacio.textContent = 'Pide un diagrama a Lumi arriba, trae nodos con «⤴ Traer nodos» o haz doble clic aquí para crear una nota';
+        capas.appendChild(vacio);
+    }
     dibujarLineasPizarra();
 }
 
@@ -3458,10 +3515,10 @@ function dibujarLineasPizarra() {
             if (!b) return;
             const ra = d.getBoundingClientRect(), rb = b.getBoundingClientRect();
             const line = document.createElementNS(ns, 'line');
-            line.setAttribute('x1', ra.left - rl.left + ra.width / 2);
-            line.setAttribute('y1', ra.top - rl.top + ra.height / 2);
-            line.setAttribute('x2', rb.left - rl.left + rb.width / 2);
-            line.setAttribute('y2', rb.top - rl.top + rb.height / 2);
+            line.setAttribute('x1', (ra.left - rl.left + ra.width / 2) / pizarraZoom);
+            line.setAttribute('y1', (ra.top - rl.top + ra.height / 2) / pizarraZoom);
+            line.setAttribute('x2', (rb.left - rl.left + rb.width / 2) / pizarraZoom);
+            line.setAttribute('y2', (rb.top - rl.top + rb.height / 2) / pizarraZoom);
             line.setAttribute('marker-end', 'url(#pizarra-flecha)');
             line.classList.add('pizarra-linea');
             if ((d.dataset.conflictos || '').split(',').includes(otroId)) line.classList.add('conflicto');
@@ -3484,6 +3541,10 @@ function iniciarDragPizarra(e, el) {
     const soltar = () => {
         document.removeEventListener('mousemove', mover);
         document.removeEventListener('mouseup', soltar);
+        // Snap a cuadrícula (2%) al soltar: alineación profesional
+        el.style.left = Math.max(2, Math.min(93, Math.round(parseFloat(el.style.left) / 2) * 2)) + '%';
+        el.style.top = Math.max(3, Math.min(90, Math.round(parseFloat(el.style.top) / 2) * 2)) + '%';
+        dibujarLineasPizarra();
         guardarPizarra();
     };
     document.addEventListener('mousemove', mover);
@@ -3649,6 +3710,8 @@ async function abrirPizarra() {
     crearPizarraDOM();
     document.getElementById('pizarra-modal').classList.remove('hidden');
     pizarraAbierta = true;
+    const navTop = document.querySelector('.top-nav');
+    if (navTop) { navTop.classList.add('nav-oculta'); navTop.style.display = 'none'; } // el menú se aparta para apreciar el tablero
     try {
         const resp = await fetch('/api/pizarra', { headers: { ...getHeaders() } });
         const data = await resp.json();
@@ -3661,6 +3724,8 @@ async function abrirPizarra() {
 function cerrarPizarra() {
     document.getElementById('pizarra-modal')?.classList.add('hidden');
     pizarraAbierta = false;
+    const navTop = document.querySelector('.top-nav');
+    if (navTop) { navTop.classList.remove('nav-oculta'); navTop.style.display = ''; }
 }
 
 // ====== VOZ LOCAL: dictar a Lumi con el micrófono del Mac ======
