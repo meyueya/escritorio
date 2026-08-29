@@ -1354,6 +1354,7 @@ function handleSessionExpired() {
     if (typeof LuminaReminders !== 'undefined') LuminaReminders.stop();
     authToken = null;
     currentUsername = null;
+    if (realtimeSource) { realtimeSource.close(); realtimeSource = null; }
 
     // Limpiar estado de nodos del DOM
     floatNodes.forEach(n => { if (n.parentNode) n.parentNode.removeChild(n); });
@@ -3117,6 +3118,7 @@ async function loadConstellation() {
         const ideas = await response.json();
 
         statusText.innerText = `Mapa de ${currentUsername} restaurado.`;
+        conectarTiempoReal(); // pizarra viva: recibir cambios de otros dispositivos
 
         // Renderizar secuencialmente (filtrar ocultos por agujeros negros)
         const visibleIdeas = ideas.filter(i => !i.hidden);
@@ -3135,6 +3137,30 @@ async function loadConstellation() {
 
 // NO cargar de inmediato, esperar a ver si tiene sesión
 // setTimeout(loadConstellation, 500);
+
+// ====== TIEMPO REAL (SSE) — pizarra viva multi-dispositivo ======
+let realtimeSource = null;
+
+function conectarTiempoReal() {
+    if (realtimeSource || !currentUsername) return;
+    try {
+        realtimeSource = new EventSource('/api/stream'); // auth por cookie HttpOnly (same-origin)
+        realtimeSource.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.tipo === 'datos-actualizados') {
+                    if (data.usuario && data.usuario !== currentUsername) {
+                        showLuminaToast(`🔄 ${data.usuario} actualizó el mapa — sincronizando…`);
+                    }
+                    loadConstellation();
+                    if (todayModal && !todayModal.classList.contains('hidden')) loadToday();
+                }
+            } catch { /* heartbeats ": ping" no son JSON */ }
+        };
+    } catch (err) {
+        console.warn('[TiempoReal] SSE no disponible:', err.message);
+    }
+}
 
 // ====== LÓGICA DEL MODAL INTERACTIVO ======
 const nodeModal = document.getElementById('node-modal');

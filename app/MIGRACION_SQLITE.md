@@ -52,4 +52,6 @@ También existe `exportarJSON(dataDir)` en `almacen.js` para volcar la DB a JSON
 
 ## Siguiente paso en la hoja de ruta
 
-Con WAL ya activo, el siguiente cimiento habilita lo realtime: capa de eventos (SSE/WebSocket) para la colaboración en vivo, y después el **Bucle Estratégico Autónomo** (briefing matutino + detección de bloqueos) sobre el calendario de misiones.
+✅ **Completado (rama `feature/realtime`)**: capa de tiempo real SSE (`GET /api/stream`) — cada escritura en `data.json` emite `datos-actualizados` al canal de la organización y los clientes re-sincronizan; incluye presencia (nº de dispositivos conectados).
+
+⏭️ **Pendiente**: **Bucle Estratégico Autónomo** (✅ v1 completado en `feature/bucle-autonomo`: briefing IA + vigilancia) y **Meeting→Action** sobre Google Calendar.

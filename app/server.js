@@ -128,6 +128,50 @@ const BACKUP_FILE = path.join(RUNTIME_DATA_DIR, 'backup.json');
 
 // Puerto HTTP. 3100 por defecto: el 3000 queda reservado para AsistenteIA.
 const PORT = process.env.PORT || 3100;
+
+// ===== TIEMPO REAL (SSE) — pizarra viva multi-dispositivo =====
+// Arquitectura: las escrituras emiten un evento por canal (organización) y los
+// clientes conectados re-sincronizan (server push → client re-pull). Sin diffs
+// complejos y sin fuga entre tenants: cada canal solo recibe "hubo cambios".
+const { AsyncLocalStorage } = require('node:async_hooks');
+const contextoReq = new AsyncLocalStorage();
+
+const clientesPorCanal = new Map(); // canal (orgId|userId) → Set<res SSE>
+
+function canalDe(req) {
+    return req?.orgId || req?.userId || null;
+}
+
+function emitirCambio(tipo, meta = {}) {
+    const req = contextoReq.getStore();
+    const canal = canalDe(req);
+    if (!canal) return; // escrituras sin contexto de petición (p.ej. siembra demo)
+    const clientes = clientesPorCanal.get(canal);
+    if (!clientes || clientes.size === 0) return;
+    const payload = JSON.stringify({ tipo, usuario: req.username || null, ts: Date.now(), ...meta });
+    for (const res of clientes) {
+        try { res.write(`data: ${payload}\n\n`); } catch { clientes.delete(res); }
+    }
+}
+
+function emitirPresencia(canal) {
+    const clientes = clientesPorCanal.get(canal);
+    const conectados = clientes ? clientes.size : 0;
+    const payload = JSON.stringify({ tipo: 'presencia', conectados, ts: Date.now() });
+    for (const res of clientes || []) {
+        try { res.write(`data: ${payload}\n\n`); } catch { /* ignore */ }
+    }
+}
+
+/** Hook de prueba: cliente SSE falso para validar el bus sin sockets reales. */
+function _conectarClientePrueba(canal) {
+    if (!clientesPorCanal.has(canal)) clientesPorCanal.set(canal, new Set());
+    const clientes = clientesPorCanal.get(canal);
+    const fake = { mensajes: [], write(m) { this.mensajes.push(m); } };
+    clientes.add(fake);
+    emitirPresencia(canal);
+    return { mensajes: fake.mensajes, desconectar: () => clientes.delete(fake) };
+}
 const configuredJwtSecret = (process.env.JWT_SECRET || '').trim();
 if (process.env.NODE_ENV === 'production' && configuredJwtSecret.length < 32) {
     throw new Error('JWT_SECRET debe existir y tener al menos 32 caracteres en producción.');
@@ -164,8 +208,46 @@ function borrarCookieSesion(res) {
 }
 
 // Utilidades para leer/escribir base de datos — capa SQLite (WAL), misma API que antes.
-const { initDB, leerJSON, guardarJSON } = require('./almacen');
+const almacen = require('./almacen');
+const initDB = almacen.initDB;
+const leerJSON = almacen.leerJSON;
+function guardarJSON(archivo, data) {
+    almacen.guardarJSON(archivo, data);
+    // Hook de tiempo real: cualquier escritura en data.json notifica al canal de la org.
+    if (archivo === DATA_FILE) emitirCambio('datos-actualizados');
+}
 initDB(RUNTIME_DATA_DIR);
+
+/**
+ * GET /api/stream — Canal SSE de tiempo real (auth por cookie HttpOnly).
+ * El cliente recibe: conectado, presencia (nº de dispositivos) y datos-actualizados.
+ */
+app.get('/api/stream', requireAuth, (req, res) => {
+    const canal = canalDe(req);
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+    res.write(`data: ${JSON.stringify({ tipo: 'conectado', usuario: req.username, ts: Date.now() })}\n\n`);
+
+    if (!clientesPorCanal.has(canal)) clientesPorCanal.set(canal, new Set());
+    const clientes = clientesPorCanal.get(canal);
+    clientes.add(res);
+    emitirPresencia(canal);
+
+    const heartbeat = setInterval(() => {
+        try { res.write(': ping\n\n'); } catch { /* ignore */ }
+    }, 25000);
+    heartbeat.unref?.();
+
+    req.on('close', () => {
+        clearInterval(heartbeat);
+        clientes.delete(res);
+        if (clientes.size === 0) clientesPorCanal.delete(canal);
+        else emitirPresencia(canal);
+    });
+});
 
 // Mutex por archivo: serializa los bloques leer→mutar→guardar que cruzan un `await`,
 // evitando lost-updates entre peticiones concurrentes (defensa adicional sobre WAL).
@@ -698,7 +780,7 @@ function requireAuth(req, res, next) {
         req.username = decoded.username;
         req.role = decoded.role || 'ceo'; // Retrocompatible
         req.orgId = decoded.orgId || null;
-        next();
+        contextoReq.run(req, next);
     } catch {
         return res.status(401).json({ error: 'Token inválido o expirado.' });
     }
@@ -3877,4 +3959,4 @@ app.use((err, req, res, next) => {
 });
 
 // Exportamos solo lo necesario para tests (no usado por la app en producción).
-module.exports = { app, circuitoGroq, estadoIA, ejecutarVigilancia };
+module.exports = { app, circuitoGroq, estadoIA, ejecutarVigilancia, _conectarClientePrueba };
