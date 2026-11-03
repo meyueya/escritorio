@@ -1,42 +1,32 @@
 name: CI
-
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
   pull_request:
-    branches: [ main, master ]
-
+    branches: [main, master]
+permissions:
+  contents: read
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [app, EmpleoApp]
+    defaults:
+      run:
+        working-directory: ${{ matrix.project }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: '18'
-
-      - name: Install & Test (root if package.json exists)
-        run: |
-          if [ -f package.json ]; then
-            npm ci || npm install || true
-            if npm run | grep -q "lint"; then npm run lint || true; fi
-            if npm run | grep -q "test"; then npm test || true; fi
-          else
-            echo "No package.json in repo root; skipping root install/test.";
-          fi
-
-      - name: Search subfolders for package.json and run basic checks
-        run: |
-          while IFS= read -r pkg; do
-            dir=$(dirname "$pkg")
-            echo "-- Running in $dir --"
-            pushd "$dir"
-            if [ -f package.json ]; then
-              npm ci || npm install || true
-              if npm run | grep -q "lint"; then npm run lint || true; fi
-              if npm run | grep -q "test"; then npm test || true; fi
-            fi
-            popd
-          done < <(find . -maxdepth 3 -name package.json)
+          node-version: '22'
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Lint when configured
+        run: npm run lint --if-present
+      - name: Test when configured
+        run: npm run test --if-present
+        env:
+          CI: 'true'
